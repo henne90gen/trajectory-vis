@@ -1,0 +1,12 @@
+#version 330 core
+out vec4 FragColor;
+
+in vec4 color_fs;
+
+float tick(float t);
+
+void main()
+{
+    float lightness = 0.8;
+    FragColor = vec4(color_fs.xyz * (tick(color_fs.a) * (1 - lightness) + lightness), 1.0);
+}

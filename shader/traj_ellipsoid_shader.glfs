@@ -1,0 +1,25 @@
+#version 330 core
+out vec4 FragColor;
+
+in vec3 position_world_space;
+in vec3 normal_world_space;
+in vec2 tex_coord_fs;
+
+// texture sampler
+uniform sampler2D texture1;
+uniform bool textured;
+
+vec3 compute_light_on_color(vec3 position_world_space, vec3 normal_world_space, vec3 color);
+vec3 compute_light(vec3 position_world_space, vec3 normal_world_space);
+
+void main()
+{
+    vec3 result;
+    if (textured) {
+        vec4 color = texture(texture1, tex_coord_fs);
+        result = compute_light_on_color(position_world_space, normal_world_space, color.rgb);
+    } else {
+        result = compute_light(position_world_space, normal_world_space);
+    }
+    FragColor = vec4(result, 1.0);
+} 

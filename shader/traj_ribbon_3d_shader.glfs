@@ -1,0 +1,17 @@
+#version 330 core
+out vec4 FragColor;
+
+in vec4 color_fs;
+in vec3 position_world;
+in vec3 normal_world;
+
+vec3 compute_light_on_color(vec3 position_world_space, vec3 normal_world_space, vec3 color);
+
+float tick(float t);
+
+void main()
+{
+    vec3 result = compute_light_on_color(position_world, normal_world, color_fs.rgb);
+    float lightness = 0.8;
+    FragColor = vec4(result * (tick(color_fs.a) * (1 - lightness) + lightness), 1.0);
+}

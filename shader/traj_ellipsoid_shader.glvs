@@ -1,0 +1,39 @@
+#version 330 core
+
+in vec4 position;
+in vec4 normal;
+in vec2 tex_coord;
+in vec3 translation;
+in vec4 orientation;
+
+out vec3 position_world_space;
+out vec3 normal_world_space;
+out vec2 tex_coord_fs;
+
+uniform mat4 view;
+uniform mat4 projection;
+
+vec4 quat_normed(vec4 q);
+vec3 quat_rotate(vec3 pos, vec4 q);
+
+void main()
+{
+    // normalize quaternion
+    vec4 orientation_norm = quat_normed(orientation);
+
+    // rotate vertex
+    vec3 pos = quat_rotate(position.xyz, orientation_norm);
+
+    position_world_space = pos + translation;
+
+    // // compute model matrix
+    // mat4 model = mat4(1.0);
+    // model = mat4(model[0], model[1], model[2], vec4(translation, 1.0f));
+    // normal_world_space = mat3(transpose(inverse(model))) * (normal.xyz);
+    
+    normal_world_space = quat_rotate(normal.xyz, orientation_norm);
+    
+    gl_Position = projection * view * vec4(position_world_space, 1.0f);
+
+    tex_coord_fs = tex_coord;
+}

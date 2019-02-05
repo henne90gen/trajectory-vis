@@ -1,0 +1,3 @@
+files:traj_ellipsoid_shader
+vertex_file:traj_math.glsl
+fragment_file:traj_light.glsl

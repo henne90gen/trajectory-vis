@@ -1,0 +1,5 @@
+files:traj_ribbon_3d_gpu_shader
+vertex_file:traj_math.glsl
+fragment_file:traj_light.glsl
+geometry_file:traj_math.glsl
+geometry_shader_info:lines;triangle_strip;2

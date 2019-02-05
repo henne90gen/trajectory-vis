@@ -1,0 +1,18 @@
+#version 330 core
+
+in vec3 position;
+in vec3 velocity;
+
+out vec3 velocity_gs;
+out vec3 position_world_space;
+
+uniform mat4 view;
+uniform mat4 projection;
+
+void main()
+{
+    gl_Position = projection * view * vec4(position, 1.0f);
+    position_world_space = position;
+
+    velocity_gs = velocity;
+}

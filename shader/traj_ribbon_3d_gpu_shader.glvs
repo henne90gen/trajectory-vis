@@ -1,0 +1,32 @@
+#version 330 core
+
+in vec3 position;
+in vec4 orientation;
+in vec3 main_axis;
+in vec3 normal;
+in vec4 color;
+
+out vec4 color_gs;
+out vec3 normals_gs;
+out vec3 axis_world_gs;
+out vec3 position_world_gs;
+
+uniform mat4 view;
+uniform mat4 projection;
+uniform int tick_sample_count;
+
+vec4 quat_normed(vec4 q);
+vec3 quat_rotate(vec3 pos, vec4 q);
+
+void main()
+{
+    position_world_gs = position;
+
+    axis_world_gs = quat_rotate(main_axis.xyz, orientation);
+
+    gl_Position = projection * view * vec4(position_world_gs, 1.0f);
+
+    color_gs = vec4(color.rgb, color.a / float(tick_sample_count));
+
+    normals_gs = normal;
+}

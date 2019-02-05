@@ -1,0 +1,225 @@
+#version 330 core
+layout (lines) in;
+layout (triangle_strip, max_vertices = 16) out;
+
+in vec4 color_gs[];
+in vec3 axis_world_gs[];
+in vec3 position_world_gs[];
+in vec3 normals_gs[];
+
+out vec4 color;
+out vec3 position_world;
+out vec3 normal_world;
+
+uniform mat4 view;
+uniform mat4 projection;
+uniform float height;
+
+void main()
+{
+    // create new vertices as triangle strip for the two points (u, v) of input line
+    // in such a way that the points are in the middle of the given axis
+    //   u1        v1
+    //   |         |
+    //  [0]-------[1] (input)
+    //   |         |
+    //   u2        v2
+    //
+    // and form a mantle of a 3D ribbon:
+    //        u1   v1
+    //        o----o 
+    //       /    /|
+    //   u2 o----o o _v1
+    //      |    |/
+    //      o----o
+    //     _u2  _v2
+    // height of ribbon (leading to _u1 etc in normal direction)
+    // float height = 0.01;
+    vec3 _norm_u = (-1 * normals_gs[0] * height) / 2.0f;
+    vec3 _norm_v = (-1 * normals_gs[1] * height) / 2.0f;
+
+    // half axis direction vector of first point u
+    vec3 axis_u1 = axis_world_gs[0];
+    // opposite half axis direction vector
+    vec3 axis_u2 = axis_u1 * -1;
+
+    // half axis direction vector of second point v
+    vec3 axis_v1 = axis_world_gs[1];
+    // opposite half axis direction vector
+    vec3 axis_v2 = axis_v1 * -1;
+
+    // get world coordinates of vertices of top rectangle of ribbon mantle
+    vec3 u1 = axis_u1 + position_world_gs[0] - _norm_u;
+    vec3 u2 = axis_u2 + position_world_gs[0] - _norm_u;
+    vec3 v1 = axis_v1 + position_world_gs[1] - _norm_v;
+    vec3 v2 = axis_v2 + position_world_gs[1] - _norm_v;
+    vec3 _u1 = u1 + 2 * _norm_u;
+    vec3 _u2 = u2 + 2 * _norm_u;
+    vec3 _v1 = v1 + 2 * _norm_v;
+    vec3 _v2 = v2 + 2 * _norm_v;
+
+
+    // tessellation of one mantle:
+    //  u1----v1
+    //   |1 / |      ribbon top
+    //   | / 2|
+    //  u2----v2
+    //   |3 / |      ribbon side
+    //   | / 4|
+    //  u'2---v'2
+    //   |5 / |      ribbon bottom
+    //   | / 6|
+    //  u'1----v'1
+    //   |7 / |      ribbon side
+    //   | / 8|
+    //  u1----v1
+    // create new vertices for triangle strips:
+    // splits into 4 strips for correct normals at side of ribbon
+
+    // ribbon top:  u1 - v1 - u2 - v2
+    // u1
+    gl_Position = (projection * view * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  - (projection * view * vec4(_norm_u, 0.0f));
+    position_world = u1;
+    color = color_gs[0];
+    normal_world = normals_gs[0];
+    EmitVertex();
+
+    // v1
+    gl_Position = (projection * view * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
+                  - (projection * view * vec4(_norm_v, 0.0f));
+    position_world = v1;
+    color = color_gs[1];
+    normal_world = normals_gs[1];
+    EmitVertex();
+
+    // u2
+    gl_Position = (projection * view * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  - (projection * view * vec4(_norm_u, 0.0f));
+    position_world = u2;
+    color = color_gs[0];
+    normal_world = normals_gs[0];
+    EmitVertex();
+
+    // v2
+    gl_Position = (projection * view * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
+                  - (projection * view * vec4(_norm_v, 0.0f));
+    position_world = v2;
+    color = color_gs[1];
+    normal_world = normals_gs[1];
+    EmitVertex();
+
+    EndPrimitive();
+
+
+    // ribbon bottom:  _u2 - _v2 - _u1 - _v1
+    // _u2
+    gl_Position = (projection * view * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  + (projection * view * vec4(_norm_u, 0.0f));
+    position_world = _u2;
+    color = color_gs[0];
+    normal_world = -1 * normals_gs[0];
+    EmitVertex();
+
+    // _v2
+    gl_Position = ( projection * view * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
+                  + (projection * view * vec4(_norm_v, 0.0f));
+    position_world = _v2;
+    color = color_gs[1];
+    normal_world = -1 * normals_gs[1];
+    EmitVertex();
+
+    // _u1
+    gl_Position = (projection * view * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  + (projection * view * vec4(_norm_u, 0.0f));
+    position_world = _u1;
+    color = color_gs[0];
+    normal_world = -1 * normals_gs[0];
+    EmitVertex();
+
+    // _v1
+    gl_Position = (projection * view * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
+                  + (projection * view * vec4(_norm_v, 0.0f));
+    position_world = _v1;
+    color = color_gs[1];
+    normal_world = -1 * normals_gs[1];
+    EmitVertex();
+
+    EndPrimitive();
+
+
+    // ribbon side:  u2 - v2 - _u2 - _v2
+    // normals for ribbon side is axis
+    vec3 norm_side_u = normalize(axis_u1);
+    vec3 norm_side_v = normalize(axis_v1);
+
+    // u2
+    gl_Position = (projection * view * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  - (projection * view * vec4(_norm_u, 0.0f));
+    position_world = u2;
+    color = color_gs[0];
+    normal_world = -1 * norm_side_u;
+    EmitVertex();
+
+    // v2
+    gl_Position = (projection * view * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
+                  - (projection * view * vec4(_norm_v, 0.0f));
+    position_world = v2;
+    color = color_gs[1];
+    normal_world = -1 * norm_side_v;
+    EmitVertex();
+
+    // _u2
+    gl_Position = (projection * view * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  + (projection * view * vec4(_norm_u, 0.0f));
+    position_world = _u2;
+    color = color_gs[0];
+    normal_world = -1 * norm_side_u;
+    EmitVertex();
+
+    // _v2
+    gl_Position = ( projection * view * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
+                  + (projection * view * vec4(_norm_v, 0.0f));
+    position_world = _v2;
+    color = color_gs[1];
+    normal_world = -1 * norm_side_v;
+    EmitVertex();
+    
+    EndPrimitive();
+
+
+    // ribbon side:   _u1 - _v1 - u1 - v1
+    // _u1
+    gl_Position = (projection * view * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  + (projection * view * vec4(_norm_u, 0.0f));
+    position_world = _u1;
+    color = color_gs[0];
+    normal_world = norm_side_u;
+    EmitVertex();
+
+    // _v1
+    gl_Position = (projection * view * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
+                  + (projection * view * vec4(_norm_v, 0.0f));
+    position_world = _v1;
+    color = color_gs[1];
+    normal_world = norm_side_v;
+    EmitVertex();
+
+    // u1
+    gl_Position = (projection * view * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  - (projection * view * vec4(_norm_u, 0.0f));
+    position_world = u1;
+    color = color_gs[0];
+    normal_world = norm_side_u;
+    EmitVertex();
+
+    // v1
+    gl_Position = (projection * view * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
+                  - (projection * view * vec4(_norm_v, 0.0f));
+    position_world = v1;
+    color = color_gs[1];
+    normal_world = norm_side_v;
+    EmitVertex();
+
+    EndPrimitive();
+}

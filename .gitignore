@@ -1,0 +1,7 @@
+*.sublime-workspace
+
+build/
+doc/build/
+dist/release/
+dist/ellipsoid-trajectory-vis/
+dist/*.tar.gz

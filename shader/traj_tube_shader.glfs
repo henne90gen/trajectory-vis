@@ -1,0 +1,14 @@
+#version 330 core
+out vec4 FragColor;
+
+in vec4 color_fs;
+in vec3 position_world;
+in vec3 normal_world;
+
+vec3 compute_light_on_color(vec3 position_world_space, vec3 normal_world_space, vec3 color);
+
+void main()
+{
+    vec3 result = compute_light_on_color(position_world, normal_world, color_fs.rgb);
+    FragColor = vec4(result, 1.0);
+} 

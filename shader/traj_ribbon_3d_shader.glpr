@@ -1,0 +1,2 @@
+files:traj_ribbon_3d_shader
+fragment_file:traj_light.glsl

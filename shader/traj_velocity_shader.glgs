@@ -1,0 +1,35 @@
+#version 330 core
+
+layout (points) in;
+layout (line_strip, max_vertices = 2) out;
+
+in vec3 velocity_gs[];
+in vec3 position_world_space[];
+
+out vec4 vcolor;
+
+uniform mat4 view;
+uniform mat4 projection;
+uniform bool value_color;
+uniform float max_velocity;
+
+float norm(vec3 v);
+
+void main()
+{
+    gl_Position = gl_in[0].gl_Position;
+    if (value_color)
+        vcolor = vec4(0.0f, 0.0f, norm(velocity_gs[0]) / max_velocity * 1.0f, 1.0f);
+    else
+        vcolor = vec4(normalize(abs(velocity_gs[0])), 1.0f);
+    EmitVertex();
+
+    gl_Position = projection * view * vec4(position_world_space[0] + velocity_gs[0], 1.0f);
+    if (value_color)
+        vcolor = vec4(0.0f, 0.0f, norm(velocity_gs[0]) / max_velocity * 1.0f, 1.0f);
+    else
+        vcolor = vec4(normalize(abs(velocity_gs[0])), 1.0f);
+    EmitVertex();
+
+    EndPrimitive();
+}

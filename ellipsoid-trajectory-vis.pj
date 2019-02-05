@@ -1,0 +1,18 @@
+@=
+projectName="ellipsoid-trajectory-vis";
+projectType="application_plugin";
+projectGUID="1864DCB9-4C0A-42D3-803E-0FF2E0DFB7BC";
+addProjectDirs=[CGV_DIR."/plugins", CGV_DIR."/libs", CGV_DIR."/3rd", INPUT_DIR];
+excludeSourceDirs=[INPUT_DIR, INPUT_DIR."/.git", INPUT_DIR."/doc"];
+addIncDirs=[INPUT_DIR."/src", INPUT_DIR."/include", INPUT_DIR."/shader"];
+addProjectDeps=[
+	"cgv_base", "cgv_utils", "cgv_math", "cgv_gui", "cg_fltk", "cgv_gl", "cgv_render",
+	"crg_stereo_view", "cgv_viewer"
+];
+addDependencies=["opengl"];
+addSharedDefines=["ETV_EXPORTS"];
+addCommandLineArguments=[
+	"type(shader_config):shader_path='".INPUT_DIR."/shader;".CGV_DIR."/libs/cgv_gl/glsl;"
+	.CGV_DIR."/libs/plot/glsl;".CGV_DIR."/libs/point_cloud/glsl'"
+];
+workingDirectory = INPUT_DIR;

@@ -1,0 +1,24 @@
+#version 330 core
+
+in vec3 position;
+in vec3 normal;
+in vec4 color;
+
+out vec4 color_fs;
+out vec3 normal_world;
+out vec3 position_world;
+
+uniform mat4 view;
+uniform mat4 projection;
+uniform int tick_sample_count;
+
+void main()
+{
+    position_world = position;
+
+    gl_Position = projection * view * vec4(position_world, 1.0f);
+
+    color_fs = vec4(color.rgb, color.a / float(tick_sample_count));
+
+    normal_world = normal;
+}

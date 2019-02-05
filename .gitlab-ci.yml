@@ -1,0 +1,73 @@
+stages:
+  - build
+  - release
+
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+build:xenial:
+  image: ubuntu:xenial
+  stage: build
+  artifacts:
+    paths:
+      - dist/ellipsoid-trajectory-vis-16.04.tar.gz
+  script:
+    - apt-get update
+    - apt-get install --no-install-recommends -y
+        build-essential
+        git
+        wget
+        ca-certificates
+        make
+        chrpath
+        libgl1-mesa-dev
+        libglu1-mesa-dev
+        libglew-dev
+        libxi-dev
+        libjpeg-dev
+        libpng-dev
+        libtiff-dev
+        libz-dev
+    - wget https://github.com/Kitware/CMake/releases/download/v3.13.0/cmake-3.13.0-Linux-x86_64.sh
+    - sh cmake-3.13.0-Linux-x86_64.sh --prefix=/usr/local --exclude-subdir
+    - make gzip
+    - mv dist/ellipsoid-trajectory-vis.tar.gz dist/ellipsoid-trajectory-vis-16.04.tar.gz
+
+build:bionic:
+  image: ubuntu:bionic
+  stage: build
+  artifacts:
+    paths:
+      - dist/ellipsoid-trajectory-vis-18.04.tar.gz
+  script:
+    - apt-get update
+    - apt-get install --no-install-recommends -y
+        build-essential
+        git
+        cmake
+        chrpath
+        libgl1-mesa-dev
+        libglu1-mesa-dev
+        libglew-dev
+        libxi-dev
+        libjpeg-dev
+        libpng-dev
+        libtiff-dev
+        libz-dev
+    - make gzip
+    - mv dist/ellipsoid-trajectory-vis.tar.gz dist/ellipsoid-trajectory-vis-18.04.tar.gz
+
+pages:
+  image: alpine:latest
+  stage: release
+  dependencies: 
+    - build:xenial
+    - build:bionic
+  script:
+    - mkdir -p public/
+    - mv dist/*.tar.gz public/
+  artifacts:
+    paths:
+    - public
+  # only:
+  # - master
