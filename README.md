@@ -1,6 +1,6 @@
 # Trajectory Visualization
 
-The visualization of particle trajectories is an important tool for analyzing particle movements and finding movement patterns. The trajectory of a particle describes its path covered over time. This project is based on my diploma thesis on *Visualization of trajectories of ellipsoid-shaped particles* (see [project](https://git.square-src.de/franzi/ellipsoid-trajectory-vis) and [diploma thesis pdf](https://franzi.square-src.de/diploma-thesis.pdf)). It is written as a plugin for the [CGV framework](https://github.com/sgumhold/cgv) (for CMake support the [cgv fork](https://github.com/f3anaro/cgv) is used).
+The visualization of particle trajectories is an important tool for analyzing particle movements and finding movement patterns. The trajectory of a particle describes its path covered over time. This project is based on my diploma thesis on *Visualization of trajectories of ellipsoid-shaped particles* (see [project](https://franzi.pages.square-src.de/ellipsoid-trajectory-vis/))). It is written as a plugin for the [CGV framework](https://github.com/sgumhold/cgv) (for CMake support the [cgv fork](https://github.com/f3anaro/cgv) is used).
 
 
 ## Compilation
