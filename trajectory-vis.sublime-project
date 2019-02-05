@@ -6,7 +6,7 @@
             "folder_exclude_patterns": [
                 "build",
                 "dist/release",
-                "dist/ellipsoid-trajectory-vis",
+                "dist/trajectory-vis",
             ],
             "file_exclude_patterns": [
                 "dist/*.tar.gz",

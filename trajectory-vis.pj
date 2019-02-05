@@ -1,5 +1,5 @@
 @=
-projectName="ellipsoid-trajectory-vis";
+projectName="trajectory-vis";
 projectType="application_plugin";
 projectGUID="1864DCB9-4C0A-42D3-803E-0FF2E0DFB7BC";
 addProjectDirs=[CGV_DIR."/plugins", CGV_DIR."/libs", CGV_DIR."/3rd", INPUT_DIR];

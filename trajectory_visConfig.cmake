@@ -12,6 +12,6 @@ find_dependency(cgv_gui REQUIRED)
 find_dependency(cgv_render REQUIRED)
 
 # Prevents importing that same targets multiple times
-if(NOT TARGET cgv::ellips_trajectory)
+if(NOT TARGET cgv::trajectory_vis)
     include("${CMAKE_CURRENT_LIST_DIR}/ellips_trajectoryTargets.cmake")
 endif()

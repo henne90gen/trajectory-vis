@@ -1,6 +1,6 @@
 #!/bin/bash
 # 
-# Ellipsoid Trajectory Visualization
+# Trajectory Visualization
 #
 # Author: Franziska Krüger
 # Date: Nov 2018
@@ -19,4 +19,4 @@ export LD_LIBRARY_PATH=$libdir
 exec $bindir/cgv_viewer \
     plugin:$libdir/libcg_fltk.so \
     plugin:$libdir/libcrg_stereo_view.so \
-    plugin:$libdir/libellips_trajectory.so
+    plugin:$libdir/libtrajectory_vis.so

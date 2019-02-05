@@ -1,5 +1,5 @@
 CGV_DIR := $(CURDIR)/cgv
-NAME := ellipsoid-trajectory-vis
+NAME := trajectory-vis
 
 DIST = $(CURDIR)/dist/$(NAME)
 GZIP = $(CURDIR)/dist/$(NAME).tar.gz
@@ -24,10 +24,10 @@ gzip: dist
 upload: gzip
 	scp $(GZIP) square-src.de:~/domains/franzi.square-src.de/
 
-# Build release of ellipsoid-trajectory plugin and install it in dist directory
+# Build release of trajectory-vis plugin and install it in dist directory
 release: cgv
-	mkdir -p dist/build/ellipsoid-trajectory-vis
-	cd dist/build/ellipsoid-trajectory-vis; \
+	mkdir -p dist/build/trajectory-vis
+	cd dist/build/trajectory-vis; \
 		cmake -D CMAKE_BUILD_TYPE=Release \
 			  -D CMAKE_PREFIX_PATH=$(CURDIR)/dist/build/cgv \
 			  -D CMAKE_INSTALL_PREFIX=$(DIST) $(CURDIR); \
