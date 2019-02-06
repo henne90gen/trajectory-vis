@@ -32,10 +32,10 @@ plugin::plugin(const char* name) : group(name)
     time_per_step = 0.0f;
 
     // loading options
-    scanned_end_time = 0;
-    start_time_loading = 1;
-    end_time_loading = 1;
-    time_resolution = 1;
+    scanned_time_steps = 0;
+    start_load_time_step = 1;
+    end_load_time_step = 1;
+    time_step_resolution = 1;
     cut_trajs = true;
     split_tolerance = 0.9;
     create_equidistant = true;
@@ -144,6 +144,7 @@ plugin::plugin(const char* name) : group(name)
     gpu_time_ticks = 0;
     measured = false;
 
+    // TODO: use framework materials
     // dynamic particle material
     ellipsoid_material.ambient = clr_type(0.8f, 0.8f, 0.8f);
     ellipsoid_material.diffuse = clr_type(0.95f, 0.95f, 1.0f);
@@ -170,7 +171,6 @@ plugin::~plugin()
     delete vp_matrices;
     delete scene_light;
 
-    // delete old ellipsoids renderer
     for (size_t e = 0; e < traj_renderer_ellipsoids.size(); e++) {
         delete traj_renderer_ellipsoids[e];
     }
@@ -178,60 +178,35 @@ plugin::~plugin()
 
 void plugin::create_gui()
 {
-    add_decorator("","separator", "color=0xffe6cc");
+    add_decorator("","separator");
 
     connect_copy(add_button("Scan for Data", "color=0xffe6cc;tooltip='Scans a directory to be able to determine which files (time steps) should be loaded afterwards';")->click,rebind(this, &plugin::scan_data));
 
-    bool load_options = true;
+    bool load_options = false;
     if (begin_tree_node("Load Options", load_options, load_options)) {
         align("\a");
 
         connect_copy(
-            add_control("Start File", start_time_loading, "value_slider", 
-            "min=1;max="+ std::to_string(scanned_end_time) +";")->value_change,
+            add_control("Start File", start_load_time_step, "value_slider", 
+            "min=1;max="+ std::to_string(scanned_time_steps) +";")->value_change,
             rebind(this, &plugin::changed_setting)
         );
         connect_copy(
-            add_control("End File", end_time_loading, "value_slider", 
-            "min=1;max="+ std::to_string(scanned_end_time) +";")->value_change,
+            add_control("End File", end_load_time_step, "value_slider", 
+            "min=1;max="+ std::to_string(scanned_time_steps) +";")->value_change,
             rebind(this, &plugin::changed_setting)
         );
         connect_copy(
-            add_control("Time Resolution", time_resolution, "value_slider", 
+            add_control("Step Resolution", time_step_resolution, "value_slider", 
             "min=1;max=20;tooltip='Only reads every ith file (time step). Wrong Trajectories can be caused by chossing a very low resolution since out of bound trajectories cannot be detected anymore.'")->value_change,
             rebind(this, &plugin::changed_setting)
         );
 
-        connect_copy(
-            add_control("split trajectories", cut_trajs, "check", 
-            "value=true;tooltip='Inserts new trajectory if it went out of bounding box'")->value_change,
-            rebind(this, &plugin::changed_setting)
-        );
-        connect_copy(
-            add_control("tolerance", split_tolerance, "value_slider", 
-            "min=0;max=1;step=0.01;tooltip='Set tolerance for splitting or continuing particle trajectories when particle enters bounding box again. If the particle traveled more than the given percentage of the bounding measure in one time step the trajectory will be split or continued. To high value can lead to artifacts due to missing continuation or splitting of trajectories.';")->value_change,
-            rebind(this, &plugin::changed_setting)
-        );
-        connect_copy(
-            add_control("start at origin", same_start, "check", 
-            "value=true;tooltip='All trajectories start at origin. Only possible if trajectories are not split.';")->value_change,
-            rebind(this, &plugin::changed_setting)
-        );
-        connect_copy(
-            add_control("create time equidistant ticks", create_equidistant, "check", 
-            "value=true;tooltip='Interpolates original loaded data to create data points that are equidistant in time';")->value_change,
-            rebind(this, &plugin::changed_setting)
-        );
-        connect_copy(
-            add_control("view unchanged", unchanged_view, "check", 
-            "value=true;tooltip='Do not automatically fit view for dataset';")->value_change,
-            rebind(this, &plugin::changed_setting)
-        );
         align("\b");
         end_tree_node(load_options);
     }
 
-    connect_copy(add_button("Load Data", "color=0xffe6cc;tooltip='Loads all files of specified folder';")->click,rebind(this, &plugin::load_data, false));
+    connect_copy(add_button("Load Data", "color=0xffe6cc;tooltip='Loads all files of scanned folder';")->click,rebind(this, &plugin::load_data, false));
 
     bool generator = false;
     if (begin_tree_node("Generator Settings", generator, generator)) {
@@ -262,6 +237,37 @@ void plugin::create_gui()
 
     connect_copy(add_button("Generate Random Data", "color=0xffe6cc;tooltip='Randomly generates specified number of trajectories with given time steps in a cubic starting area (no collision detection)';")->click,rebind(this, &plugin::load_data, true));
 
+    bool preprocess_options = true;
+    if (begin_tree_node("Preprocessing Options", preprocess_options, preprocess_options)) {
+        align("\a");
+        connect_copy(
+            add_control("split trajectories", cut_trajs, "check", 
+            "value=true;tooltip='Inserts new trajectory if it went out of bounding box'")->value_change,
+            rebind(this, &plugin::changed_setting)
+        );
+        connect_copy(
+            add_control("tolerance", split_tolerance, "value_slider", 
+            "min=0;max=1;step=0.01;tooltip='Set tolerance for splitting or continuing particle trajectories when particle enters bounding box again. If the particle traveled more than the given percentage of the bounding measure in one time step the trajectory will be split or continued. To high value can lead to artifacts due to missing continuation or splitting of trajectories.';")->value_change,
+            rebind(this, &plugin::changed_setting)
+        );
+        connect_copy(
+            add_control("start at origin", same_start, "check", 
+            "value=true;tooltip='All trajectories start at origin. Only possible if trajectories are not split.';")->value_change,
+            rebind(this, &plugin::changed_setting)
+        );
+        connect_copy(
+            add_control("create time equidistant ticks", create_equidistant, "check", 
+            "value=true;tooltip='Interpolates original loaded data to create data points that are equidistant in time';")->value_change,
+            rebind(this, &plugin::changed_setting)
+        );
+        connect_copy(
+            add_control("view unchanged", unchanged_view, "check", 
+            "value=true;tooltip='Do not automatically fit view for dataset';")->value_change,
+            rebind(this, &plugin::changed_setting)
+        );
+        align("\b");
+        end_tree_node(preprocess_options);
+    }
 
     add_decorator("","separator");
     add_decorator("Visualization Options","heading");
@@ -301,7 +307,6 @@ void plugin::create_gui()
         end_tree_node(hide_options);
     }
 
-
     bool show_ellipsoid = true;
     bool ellipsoid_node = begin_tree_node("Ellipsoids", show_ellipsoid, show_ellipsoid, "level=3;options='w=140';align=' '");
     connect_copy(
@@ -312,10 +317,7 @@ void plugin::create_gui()
     if (ellipsoid_node) {
         align("\a");
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("Sample Rate", ellipsoid_tick_sample, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=1;max=" + std::to_string(time_steps) + ";ticks=true;tooltip='Display ellipsoid at i-th time step. Always including start position except for max value.'")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
@@ -343,18 +345,12 @@ void plugin::create_gui()
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("Sample Rate", glyph_sample, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=1;max=" + std::to_string(time_steps) + ";ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("Scale Rate", glyph_scale_rate, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
@@ -375,18 +371,12 @@ void plugin::create_gui()
     if (begin_tree_node("Time Selection", select_time, select_time)) {
         align("\a");
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("Start", start_time, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "step=1;min=1;max=" + std::to_string(time_steps) + ";ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("End", end_time, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "step=1;min=1;max=" + std::to_string(time_steps) + ";ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
@@ -426,10 +416,7 @@ void plugin::create_gui()
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("Traj Id", single_traj_id, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=" + std::to_string(nr_particles - 1))->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
@@ -559,51 +546,33 @@ void plugin::create_gui()
     if (roi_node) {
         align("\a");
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("length x", roi_data.length_x_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("length y", roi_data.length_y_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("length z", roi_data.length_z_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
 
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("coordinate x", roi_data.pos_x_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("coordinate y", roi_data.pos_y_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
         connect_copy(
-            /// add a slider that controls the resolution
             add_control("coordinate z", roi_data.pos_z_percent, "value_slider", 
-            // configure the sliders min and max values, add tick marks
-            // and use a logarithmic scaling along the slider
             "min=0;max=100;ticks=true")->value_change,
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
@@ -808,7 +777,7 @@ void plugin::timer_event(double, double dt)
     if (animate && !paused) {
         auto time = std::chrono::steady_clock::now();
 
-        // take care of specified fps number
+        // take care of specified fps number (with tolerance of 0.9)
         if ((std::chrono::duration_cast<std::chrono::duration<double>>(time - time_last_frame).count()) > 0.9 * (1.0 / (double)fps))
         {
             // set up new animation
@@ -839,15 +808,16 @@ void plugin::timer_event(double, double dt)
 bool plugin::init(cgv::render::context& ctx)
 {
     // get view
-    std::vector<cgv::render::view*> view_ptrs;
-    cgv::base::find_interface(get_parent(), view_ptrs);
-    if (view_ptrs.empty())
-        return false;
-    view_ptr = view_ptrs[0];
-    view_ptr->set_focus(0.5, 0.5, 0.5);
-    view_ptr->set_y_extent_at_focus(45.0);
-    view_ptr->set_y_view_angle(45.0f);
-
+    if (view_ptr = find_view_as_node()) {
+        // initialize view
+        view_ptr->set_focus(0.5, 0.5, 0.5);
+        view_ptr->set_y_extent_at_focus(45.0);
+        view_ptr->set_y_view_angle(45.0f);
+        view_ptr->set_view_dir(vec3(0.0f, -0.6f, -0.8f));
+        view_ptr->set_view_up_dir(vec3(0.0f, 0.0f, -1.0f));
+    }
+    
+    // use white as background color
     ctx.set_bg_color(1.0f, 1.0f, 1.0f, 1.0f);
 
     // init renderer (except for ellipsoids and tubes which are handled in draw method)
@@ -863,22 +833,25 @@ bool plugin::init(cgv::render::context& ctx)
     velocity_renderer_line.init(ctx);
     angular_velocity_renderer_line.init(ctx);
 
+    // enable and set restart id used in element buffer
     glPrimitiveRestartIndex(restart_id);
     glEnable(GL_PRIMITIVE_RESTART);
 
-    // generate start screen trajs
+    // generate start screen trajectories
     ellips_data->generate_sample();
+    // set up view, light ... 
     set_up_data();
+    // overwrite some data from set up to better fit the start screen
     ellipsoid_tick_sample = time_steps / 5;
     view_ptr->set_y_extent_at_focus(25.0f);
-    view_ptr->set_view_dir(vec3(0.0f, -0.6f, -0.8f));
-    view_ptr->set_view_up_dir(vec3(0.0f, 0.0f, -1.0f));
 
     // set up openGL queries for performance stats
-    // query count and query buffer
+    // query count: 2 - GPU computation time and generated primitives
+    // query buffer: for storing the results (two buffers used for swapping)
     glGenQueries(2, queryID[queryBackBuffer]);
     glGenQueries(2, queryID[queryFrontBuffer]);
 
+    // the method timer_event will be triggered at 60hz
     connect(cgv::gui::get_animation_trigger().shoot, this, &plugin::timer_event);
 
     return true;
@@ -938,13 +911,14 @@ void plugin::scan_data()
         files.push_back(std::make_pair(time, directory_name + "/" + file_name));
     }
 
+    // sort files based on time
     sort(files.begin(), files.end());
 
     std::cout << "  .. found " << files.size() << " files" << std::endl;
 
-    start_time_loading = 1;
-    scanned_end_time = files.size();
-    end_time_loading = scanned_end_time;
+    start_load_time_step = 1;
+    scanned_time_steps = files.size();
+    end_load_time_step = scanned_time_steps;
 
     // update gui elements
     remove_all_elements();
@@ -1025,13 +999,14 @@ void plugin::load_data(bool generated)
         // randomly generate data and fill ellips data structure
         success = ellips_data->generate_random(generator_number_trajectories, generator_number_time_steps, generator_start_velocity, generator_seed, cut_trajs, same_start);
     } else {
-        if (start_time_loading < end_time_loading) {
+        // at least two time steps need to be loaded to generate trajectories from simulation data
+        if (start_load_time_step < end_load_time_step) {
             // delete previously created data and load new one
             delete ellips_data;
             ellips_data = new data();
     
             // load data for visualization
-            success = ellips_data->load(files, start_time_loading, end_time_loading, time_resolution, cut_trajs, same_start, create_equidistant, split_tolerance);
+            success = ellips_data->load(files, start_load_time_step - 1, end_load_time_step - 1, time_step_resolution, cut_trajs, same_start, create_equidistant, split_tolerance);
         } else {
             std::cerr << "Data loading failed: start time < end time expected" << std::endl;
         }
@@ -1067,6 +1042,7 @@ void plugin::load_data(bool generated)
         // draw
         post_redraw();
 
+        // store name of current data set
         size_t index = directory_name.rfind("/") + 1;
         if (index == directory_name.length()) {
             // string "/data-name/" (ended with /)

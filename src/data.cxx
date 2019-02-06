@@ -33,7 +33,7 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
     file.close();
 
     // set overall number of time steps and particles
-    max_time_steps = ceil((end - (start - 1)) / (time_resolution * 1.0f));
+    max_time_steps = ceil((end - start + 1) / (time_resolution * 1.0f));
     size_t number_particles = (size_t) s_number_particles;
 
     // reserve size of all vectors
@@ -59,7 +59,7 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
     bool success = true;
     size_t index = 0;
     // parse data of each file
-    for (int i = start - 1; i < end; i++) {
+    for (int i = start; i <= end; i++) {
         // just read every x-th time step
         if (i % time_resolution == 0) {
             std::string file_name = files[i].second;
@@ -84,11 +84,6 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
 void data::post_process(bool cut, bool same_start, bool create_equidistant, float tolerance)
 {
     std::cout << "post processing of data ... " << std::endl;
-
-    // for(int i = 1; i < tmp_data.times.size(); i++) {
-    //     if (tmp_data.times[i-1] > tmp_data.times[i])
-    //         std::cerr << "time error" << std::endl;
-    // }
 
     // 1. store axes of ellipsoids in a grouped way
     dynamics.axis_ids.reserve(tmp_data.positions.size());

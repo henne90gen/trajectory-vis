@@ -106,10 +106,10 @@ private:
     bool cut_trajs;
     bool create_equidistant;
     float split_tolerance;
-    int scanned_end_time;
-    int start_time_loading;
-    int end_time_loading;
-    int time_resolution;
+    int scanned_time_steps;
+    int start_load_time_step;       // range [1-N]
+    int end_load_time_step;         // range [1-N]
+    int time_step_resolution;
     std::string directory_name;
 
     // store all scanned files oredered by their id

@@ -68,8 +68,11 @@ class data
 public:
     data();
 
+    // loads data from given list of files from start to end index with given resolution
     bool load(std::vector<std::pair<double, std::string>>& files, int start, int end, int time_resolution = 1, bool cut = false, bool same_start = true, bool create_equidistant = false, float tolerance = 0.90);
+    // randomly generates trajectories with varying direction, rotation and velocity
     bool generate_random(size_t _number_particles = 10000, size_t _time_steps = 1000, float start_velocity = 0.0f, int seed = 0, bool cut_trajs = false, bool same_start = false);
+    // generates start screen sample trajectories
     bool generate_sample();
 
     Bounding_Box b_box;
@@ -90,8 +93,11 @@ private:
     bool read_files(std::string directory_name);
     // read Fortran binary file of given time step
     bool read_f90_file(std::string file_name, size_t t, size_t number_particles);
-
+    
+    // transfers tmp_data to data storage used for visualization
     void post_process(bool cut, bool same_start, bool create_equidistant, float tolerance);
+    
+    // updates bounding box measures
     void compute_data_bounding_box();
 };
 
