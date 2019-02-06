@@ -118,15 +118,13 @@ namespace ellipsoid_trajectory {
         value_color = use_value_color;
     }
 
-    void traj_velocity_renderer::draw(context& ctx, mat view, mat projection)
+    void traj_velocity_renderer::draw(context& ctx)
     {
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
 
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
-        prog.set_uniform(ctx, "view", view);
-        prog.set_uniform(ctx, "projection", projection);
         prog.set_uniform(ctx, "value_color", value_color);
         prog.set_uniform(ctx, "max_velocity", max_velocity);
 

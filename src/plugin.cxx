@@ -1233,7 +1233,7 @@ void plugin::render_coordinate_system(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    coord_renderer.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    coord_renderer.draw(ctx);
 }
 
 void plugin::render_trajectory_lines(cgv::render::context& ctx)
@@ -1264,7 +1264,7 @@ void plugin::render_trajectory_lines(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_line.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    traj_renderer_line.draw(ctx);
 }
 
 void plugin::render_trajectory_ribbons(cgv::render::context& ctx)
@@ -1296,7 +1296,7 @@ void plugin::render_trajectory_ribbons(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_ribbon.draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+    traj_renderer_ribbon.draw(ctx, vp_matrices->view_position);
 }
 
 void plugin::render_trajectory_3D_ribbons(cgv::render::context& ctx)
@@ -1345,7 +1345,7 @@ void plugin::render_trajectory_3D_ribbons(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_3D_ribbon.draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+    traj_renderer_3D_ribbon.draw(ctx, vp_matrices->view_position);
 }
 
 void plugin::render_trajectory_3D_ribbons_gpu(cgv::render::context& ctx)
@@ -1412,7 +1412,7 @@ void plugin::render_trajectory_3D_ribbons_gpu(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_3D_ribbon_gpu.draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+    traj_renderer_3D_ribbon_gpu.draw(ctx, vp_matrices->view_position);
 }
 
 void plugin::render_trajectory_tubes(cgv::render::context& ctx)
@@ -1436,7 +1436,7 @@ void plugin::render_trajectory_tubes(cgv::render::context& ctx)
             traj_renderer_tubes[e]->update_color_buffer(*tubes_colors[e]);
         }
 
-        traj_renderer_tubes[e]->draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+        traj_renderer_tubes[e]->draw(ctx, vp_matrices->view_position);
     }
 }
 
@@ -1455,7 +1455,7 @@ void plugin::render_normals(cgv::render::context& ctx)
         velocity_renderer_line.update_velocity_buffer(*normals_vis);
     }
 
-    velocity_renderer_line.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    velocity_renderer_line.draw(ctx);
 }
 
 void plugin::render_velocities(cgv::render::context& ctx)
@@ -1473,7 +1473,7 @@ void plugin::render_velocities(cgv::render::context& ctx)
         velocity_renderer_line.update_velocity_buffer(*velocities);
     }
 
-    velocity_renderer_line.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    velocity_renderer_line.draw(ctx);
 }
 
 void plugin::render_angular_velocities(cgv::render::context& ctx)
@@ -1491,7 +1491,7 @@ void plugin::render_angular_velocities(cgv::render::context& ctx)
         angular_velocity_renderer_line.update_velocity_buffer(*angular_velocities);
     }
 
-    angular_velocity_renderer_line.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    angular_velocity_renderer_line.draw(ctx);
 }
 
 void plugin::render_ellipsoids(cgv::render::context& ctx)
@@ -1538,7 +1538,7 @@ void plugin::render_ellipsoids(cgv::render::context& ctx)
 
         traj_renderer_ellipsoids[e]->textured = textured_ellipsoids;
 
-        traj_renderer_ellipsoids[e]->draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+        traj_renderer_ellipsoids[e]->draw(ctx, vp_matrices->view_position);
     }
 }
 
@@ -1566,7 +1566,7 @@ void plugin::render_stationary_particles(cgv::render::context& ctx)
         std::cout << "finished" << std::endl;
     }
 
-    sphere_renderer.draw(ctx, vp_matrices->view, vp_matrices->projection, vp_matrices->view_position);
+    sphere_renderer.draw(ctx, vp_matrices->view_position);
 }
 
 void plugin::render_bounding_box(cgv::render::context& ctx)
@@ -1595,7 +1595,7 @@ void plugin::render_bounding_box(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    b_box_renderer.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    b_box_renderer.draw(ctx);
 }
 
 void plugin::render_roi_box(cgv::render::context& ctx)
@@ -1631,7 +1631,7 @@ void plugin::render_roi_box(cgv::render::context& ctx)
         roi_box_renderer.update_position_buffer(vertices);
     }
   
-    roi_box_renderer.draw(ctx, vp_matrices->view, vp_matrices->projection);
+    roi_box_renderer.draw(ctx);
 }
 
 void plugin::set_traj_indices_out_of_date()

@@ -5,13 +5,15 @@ in vec4 color;
 
 out vec4 color_fs;
 
-uniform mat4 view;
-uniform mat4 projection;
 uniform int tick_sample_count;
+
+//***** begin interface of view.glsl ***********************************
+mat4 get_modelview_projection_matrix();
+//***** end interface of view.glsl ***********************************
 
 void main()
 {
-    gl_Position = projection * view * vec4(position, 1.0f);
+    gl_Position = get_modelview_projection_matrix() * vec4(position, 1.0f);
 
     color_fs = vec4(color.rgb, color.a / float(tick_sample_count));
 }
