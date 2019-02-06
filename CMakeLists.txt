@@ -50,7 +50,6 @@ add_library(trajectory_vis
     src/traj_ribbon_3d_renderer_gpu.cxx
     src/traj_velocity_renderer.cxx
     src/ellipsoid_instanced_renderer.cxx
-    src/view_projection.cxx
     src/lighting.cxx
     src/math_utils.cxx
 
@@ -67,7 +66,6 @@ add_library(trajectory_vis
     include/traj_tube_renderer.h
     include/traj_velocity_renderer.h
     include/types.h
-    include/view_projection.h
 
     # Shader Files
     ${SHADERS})

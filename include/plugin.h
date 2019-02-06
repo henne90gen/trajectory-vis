@@ -17,7 +17,6 @@
 #include "ellipsoid_instanced_renderer.h"
 #include "traj_velocity_renderer.h"
 #include "data.h"
-#include "view_projection.h"
 #include "lighting.h"
 
 
@@ -136,6 +135,7 @@ private:
     bool hide_trajs;
     int tick_marks_sample;
     float ribbon_height;
+    vec3 view_position;
     traj_line_renderer traj_renderer_line;
     traj_ribbon_renderer traj_renderer_ribbon;
     traj_ribbon_3d_renderer traj_renderer_3D_ribbon;
@@ -201,9 +201,6 @@ private:
     // update material for all renderer
     void update_material();
 
-    // current view
-    // storage and computation of view and projection matrix
-    view_projection_matrix* vp_matrices;
     // get current view (position etc..)
     cgv::render::view* view_ptr;
 

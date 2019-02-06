@@ -55,8 +55,7 @@ plugin::plugin(const char* name) : group(name)
     hide_coord = false;
     hide_stationaries = false;
 
-    // view and projection matrix calculator
-    vp_matrices = new view_projection_matrix();
+    // view and light
     scene_light = new lighting();
     view_ptr = 0;
     set_light_to_eye_pos = false;
@@ -168,7 +167,6 @@ plugin::plugin(const char* name) : group(name)
 plugin::~plugin()
 {
     delete ellips_data;
-    delete vp_matrices;
     delete scene_light;
 
     for (size_t e = 0; e < traj_renderer_ellipsoids.size(); e++) {
@@ -1096,11 +1094,7 @@ void plugin::draw(context& ctx) {
 
         setup_ellipsoids = false;
     }
-
-    // set view and projection matrix for interactive navigation through scene
-    vp_matrices->compute_view_matrix(view_ptr->get_eye(), view_ptr->get_focus(), view_ptr->get_view_up_dir());
-    vp_matrices->compute_projection_matrix(view_ptr->get_y_view_angle(), ctx.get_width(), ctx.get_height());
-    
+   
     // update index vectors if necessary (if filter are applied etc)
     if (out_of_date) {
         auto time_measure_start = std::chrono::system_clock::now();
@@ -1124,6 +1118,7 @@ void plugin::draw(context& ctx) {
     glCullFace(GL_FRONT);
     glEnable(GL_CULL_FACE);
 
+    view_position = vec3((float)view_ptr->get_eye()[0], (float)view_ptr->get_eye()[1], (float)view_ptr->get_eye()[2]);
 
     if (!hide_coord)
         render_coordinate_system(ctx);
@@ -1296,7 +1291,7 @@ void plugin::render_trajectory_ribbons(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_ribbon.draw(ctx, vp_matrices->view_position);
+    traj_renderer_ribbon.draw(ctx, view_position);
 }
 
 void plugin::render_trajectory_3D_ribbons(cgv::render::context& ctx)
@@ -1345,7 +1340,7 @@ void plugin::render_trajectory_3D_ribbons(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_3D_ribbon.draw(ctx, vp_matrices->view_position);
+    traj_renderer_3D_ribbon.draw(ctx, view_position);
 }
 
 void plugin::render_trajectory_3D_ribbons_gpu(cgv::render::context& ctx)
@@ -1412,7 +1407,7 @@ void plugin::render_trajectory_3D_ribbons_gpu(cgv::render::context& ctx)
 
     // all data already transfered to GPU
     // draw with current view
-    traj_renderer_3D_ribbon_gpu.draw(ctx, vp_matrices->view_position);
+    traj_renderer_3D_ribbon_gpu.draw(ctx, view_position);
 }
 
 void plugin::render_trajectory_tubes(cgv::render::context& ctx)
@@ -1436,7 +1431,7 @@ void plugin::render_trajectory_tubes(cgv::render::context& ctx)
             traj_renderer_tubes[e]->update_color_buffer(*tubes_colors[e]);
         }
 
-        traj_renderer_tubes[e]->draw(ctx, vp_matrices->view_position);
+        traj_renderer_tubes[e]->draw(ctx, view_position);
     }
 }
 
@@ -1538,7 +1533,7 @@ void plugin::render_ellipsoids(cgv::render::context& ctx)
 
         traj_renderer_ellipsoids[e]->textured = textured_ellipsoids;
 
-        traj_renderer_ellipsoids[e]->draw(ctx, vp_matrices->view_position);
+        traj_renderer_ellipsoids[e]->draw(ctx, view_position);
     }
 }
 
@@ -1566,7 +1561,7 @@ void plugin::render_stationary_particles(cgv::render::context& ctx)
         std::cout << "finished" << std::endl;
     }
 
-    sphere_renderer.draw(ctx, vp_matrices->view_position);
+    sphere_renderer.draw(ctx, view_position);
 }
 
 void plugin::render_bounding_box(cgv::render::context& ctx)
