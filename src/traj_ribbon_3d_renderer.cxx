@@ -135,8 +135,6 @@ namespace ellipsoid_trajectory {
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
 
-        glDisable(GL_CULL_FACE);
-
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
 
@@ -160,8 +158,6 @@ namespace ellipsoid_trajectory {
         // disable everything again
         glBindVertexArray(0);
         prog.disable(ctx);
-
-        glEnable(GL_CULL_FACE);
     }
 
     void traj_ribbon_3d_renderer::create_vertices(std::vector<vec3>& vertices_out, std::vector<vec4>& colors_out, std::vector<vec3>& normals_out, std::vector<vec3>& positions_in, vec3 main_axis_in, std::vector<vec3>& normals_in, std::vector<vec4>& orientations_in, std::vector<vec4>&colors_in)
@@ -195,8 +191,6 @@ namespace ellipsoid_trajectory {
             vec4 color;
             // adding darker ticks at every 10. time step
             color = colors_in[t];
-
-
 
             // apply current orientation to axis
             vec3 axis1 = quat_rotate(axis_positive, orientations_in[t]);
@@ -232,8 +226,8 @@ namespace ellipsoid_trajectory {
             // side of ribbon
             //
             // compute points at outer edge of axis along trajectory
-            vertices_out.push_back(v1);
             vertices_out.push_back(_v1);
+            vertices_out.push_back(v1);
 
             // store indices
             _indices_side1.push_back(current_index++);

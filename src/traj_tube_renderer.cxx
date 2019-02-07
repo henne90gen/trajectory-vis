@@ -168,6 +168,11 @@ namespace ellipsoid_trajectory {
 
     void traj_tube_renderer::draw(context& ctx, vec3 view_position)
     {
+        // TODO: change winding order for ellipsoids
+        // work around for wrong winding order of triangles (here clockwise)
+        // therefore culling the front faces instead of back faces does the trick
+        glCullFace(GL_FRONT);
+
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
 
@@ -192,5 +197,7 @@ namespace ellipsoid_trajectory {
         // disable everything again
         glBindVertexArray(0);
         prog.disable(ctx);
+        
+        glCullFace(GL_BACK);
     }
 }

@@ -180,6 +180,7 @@ private:
     bool hide_coord;
     bool hide_stationaries;
     bool unchanged_view;
+    
 
     // environment renderer (bounding box, stationary particles ...)
     traj_line_renderer b_box_renderer;

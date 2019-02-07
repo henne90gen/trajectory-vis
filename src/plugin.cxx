@@ -1115,7 +1115,6 @@ void plugin::draw(context& ctx) {
         avg_indices_time = indices_time_sum / indices_time_ticks;
     }
 
-    glCullFace(GL_FRONT);
     glEnable(GL_CULL_FACE);
 
     view_position = vec3((float)view_ptr->get_eye()[0], (float)view_ptr->get_eye()[1], (float)view_ptr->get_eye()[2]);

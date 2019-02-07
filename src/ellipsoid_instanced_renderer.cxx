@@ -166,6 +166,11 @@ namespace ellipsoid_trajectory {
     {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_2D);
+
+        // TODO: change winding order for ellipsoids
+        // work around for wrong winding order of triangles (here clockwise)
+        // therefore culling the front faces instead of back faces does the trick
+        glCullFace(GL_FRONT);
         
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
@@ -195,5 +200,7 @@ namespace ellipsoid_trajectory {
         // disable everything again
         glBindVertexArray(0);
         prog.disable(ctx);
+
+        glCullFace(GL_BACK);
     }
 }

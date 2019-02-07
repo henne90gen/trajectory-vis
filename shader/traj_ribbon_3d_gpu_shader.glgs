@@ -60,33 +60,25 @@ void main()
     vec3 _v1 = v1 + 2 * _norm_v;
     vec3 _v2 = v2 + 2 * _norm_v;
 
-
     // tessellation of one mantle:
-    //  u1----v1
-    //   |1 / |      ribbon top
-    //   | / 2|
-    //  u2----v2
-    //   |3 / |      ribbon side
-    //   | / 4|
-    //  u'2---v'2
-    //   |5 / |      ribbon bottom
-    //   | / 6|
-    //  u'1----v'1
-    //   |7 / |      ribbon side
-    //   | / 8|
-    //  u1----v1
+    // (counter clock wise since this is the default for determining fronts)
+    // u1----v1
+    //  | \ 1|       ribbon top
+    //  |2 \ |
+    // u2----v2
+    //  | \ 3|       ribbon side
+    //  |4 \ |
+    // u'2---v'2
+    //  | \ 5|       ribbon bottom
+    //  |6 \ |
+    // u'1---v'1
+    //  | \ 7|       ribbon side
+    //  |8 \ |
+    // u1----v1
     // create new vertices for triangle strips:
     // splits into 4 strips for correct normals at side of ribbon
 
-    // ribbon top:  u1 - v1 - u2 - v2
-    // u1
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
-                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = u1;
-    color = color_gs[0];
-    normal_world = normals_gs[0];
-    EmitVertex();
-
+    // ribbon top:  v1 - u1 - v2 - u2
     // v1
     gl_Position = (get_modelview_projection_matrix() * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
                   - (get_modelview_projection_matrix() * vec4(_norm_v, 0.0f));
@@ -95,10 +87,10 @@ void main()
     normal_world = normals_gs[1];
     EmitVertex();
 
-    // u2
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+    // u1
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
                   - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = u2;
+    position_world = u1;
     color = color_gs[0];
     normal_world = normals_gs[0];
     EmitVertex();
@@ -111,18 +103,18 @@ void main()
     normal_world = normals_gs[1];
     EmitVertex();
 
+    // u2
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = u2;
+    color = color_gs[0];
+    normal_world = normals_gs[0];
+    EmitVertex();
+
     EndPrimitive();
 
 
-    // ribbon bottom:  _u2 - _v2 - _u1 - _v1
-    // _u2
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
-                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = _u2;
-    color = color_gs[0];
-    normal_world = -1 * normals_gs[0];
-    EmitVertex();
-
+    // ribbon bottom:  _v2 - _u2 - _v1 - _u1
     // _v2
     gl_Position = ( get_modelview_projection_matrix() * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
                   + (get_modelview_projection_matrix() * vec4(_norm_v, 0.0f));
@@ -131,10 +123,10 @@ void main()
     normal_world = -1 * normals_gs[1];
     EmitVertex();
 
-    // _u1
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+    // _u2
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
                   + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = _u1;
+    position_world = _u2;
     color = color_gs[0];
     normal_world = -1 * normals_gs[0];
     EmitVertex();
@@ -147,21 +139,21 @@ void main()
     normal_world = -1 * normals_gs[1];
     EmitVertex();
 
+    // _u1
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = _u1;
+    color = color_gs[0];
+    normal_world = -1 * normals_gs[0];
+    EmitVertex();
+
     EndPrimitive();
 
 
-    // ribbon side:  u2 - v2 - _u2 - _v2
+    // ribbon side:  v2 - u2 - _v2 - _u2
     // normals for ribbon side is axis
     vec3 norm_side_u = normalize(axis_u1);
     vec3 norm_side_v = normalize(axis_v1);
-
-    // u2
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
-                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = u2;
-    color = color_gs[0];
-    normal_world = -1 * norm_side_u;
-    EmitVertex();
 
     // v2
     gl_Position = (get_modelview_projection_matrix() * vec4(axis_v2, 0.0f)) +  gl_in[1].gl_Position
@@ -171,10 +163,10 @@ void main()
     normal_world = -1 * norm_side_v;
     EmitVertex();
 
-    // _u2
+    // u2
     gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
-                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = _u2;
+                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = u2;
     color = color_gs[0];
     normal_world = -1 * norm_side_u;
     EmitVertex();
@@ -185,20 +177,20 @@ void main()
     position_world = _v2;
     color = color_gs[1];
     normal_world = -1 * norm_side_v;
+    EmitVertex();
+
+    // _u2
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u2, 0.0f)) +  gl_in[0].gl_Position
+                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = _u2;
+    color = color_gs[0];
+    normal_world = -1 * norm_side_u;
     EmitVertex();
     
     EndPrimitive();
 
 
-    // ribbon side:   _u1 - _v1 - u1 - v1
-    // _u1
-    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
-                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = _u1;
-    color = color_gs[0];
-    normal_world = norm_side_u;
-    EmitVertex();
-
+    // ribbon side:  _v1 - _u1 - v1 - u1
     // _v1
     gl_Position = (get_modelview_projection_matrix() * vec4(axis_v1, 0.0f)) + gl_in[1].gl_Position
                   + (get_modelview_projection_matrix() * vec4(_norm_v, 0.0f));
@@ -207,10 +199,10 @@ void main()
     normal_world = norm_side_v;
     EmitVertex();
 
-    // u1
+    // _u1
     gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
-                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
-    position_world = u1;
+                  + (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = _u1;
     color = color_gs[0];
     normal_world = norm_side_u;
     EmitVertex();
@@ -221,6 +213,14 @@ void main()
     position_world = v1;
     color = color_gs[1];
     normal_world = norm_side_v;
+    EmitVertex();
+
+    // u1
+    gl_Position = (get_modelview_projection_matrix() * vec4(axis_u1, 0.0f)) + gl_in[0].gl_Position
+                  - (get_modelview_projection_matrix() * vec4(_norm_u, 0.0f));
+    position_world = u1;
+    color = color_gs[0];
+    normal_world = norm_side_u;
     EmitVertex();
 
     EndPrimitive();
