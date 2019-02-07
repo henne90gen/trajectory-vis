@@ -418,6 +418,7 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
     for (size_t p = 0; p < dynamics.trajs.size(); p++) {
         dynamics.trajs[p]->angular_velocities.resize(dynamics.trajs[p]->orientations.size());
         dynamics.trajs[p]->velocities.resize(dynamics.trajs[p]->orientations.size());
+
         for (size_t t = 0; t < dynamics.trajs[p]->orientations.size() - 1; t++) {
             // compute angular velocity between current and next time step
             // quaternion that q * q0 = q1 --> q = q1 * conj(q0) (for unit length quaternions)
@@ -443,8 +444,9 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
             dynamics.trajs[p]->velocities[t] = dynamics.trajs[p]->positions[t + 1] - 
                                                dynamics.trajs[p]->positions[t];
         }
-        dynamics.trajs[p]->angular_velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
-        dynamics.trajs[p]->velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
+
+        dynamics.trajs[p]->angular_velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
+        dynamics.trajs[p]->velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
     }
 
 
@@ -452,6 +454,7 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
     std::cout << "  .. compute normals for each time step" << std::endl;
     for (size_t p = 0; p < dynamics.trajs.size(); p++) {
         dynamics.trajs[p]->main_axis_normals.resize(dynamics.trajs[p]->orientations.size());
+
         for (size_t t = 0; t < dynamics.trajs[p]->orientations.size() - 1; t++) {
             // compute orientated main axis (assumes longest axis at position 0)
             // TODO: compute for all axis
@@ -461,7 +464,8 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
 
             dynamics.trajs[p]->main_axis_normals[t] = n;
         }
-        dynamics.trajs[p]->main_axis_normals[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
+
+        dynamics.trajs[p]->main_axis_normals[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
         // std::cout << dynamics.trajs[p]->main_axis_normals.size() << std::endl;
     }
 

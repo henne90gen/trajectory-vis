@@ -942,7 +942,9 @@ void plugin::set_up_data()
                                              ellips_data->b_box.center[2]));
     }
 
-    time_steps = ellips_data->max_time_steps;
+    // 3D ribbon geometry cannot be computed for last time step
+    // therefore remove it from displayable data for consistent view onto data
+    time_steps = ellips_data->max_time_steps - 1;
     start_time = 1;
     end_time = time_steps;
     nr_particles = ellips_data->dynamics.axis_ids.size();
@@ -951,15 +953,16 @@ void plugin::set_up_data()
     time_colors.clear();
     time_colors.resize(0);
 
-    for (size_t t = 0; t < time_steps; t++) {
+    for (size_t t = 0; t <= time_steps; t++) {
         // percental time of whole time interval
         // intensity = current_time / time_diff
         float intensity = t / (float)time_steps;
 
+        // color transition yellow -> green -> blue
+        // (1.0, 1.0, 0.0) -> (0.0, 1.0, 0.0) -> (0.0, 0.0, 1.0)
         float red = (intensity > 0.5f) ? 0.0f : (1.0f - 2 * intensity);
         float green = (intensity > 0.5f) ? (1.0f - 2 * (intensity - 0.5)) : 1.0f;
         float blue = (intensity > 0.5f) ? 2 * (intensity - 0.5) : 0.0f;
-
 
         vec3 tmp_color = vec3(0.95f, 0.95f, 0.95f) * 0.35f + vec3(red, green, blue) * 0.65f;
         vec4 color = vec4(tmp_color[0], tmp_color[1], tmp_color[2], (float)t);
@@ -1949,10 +1952,11 @@ void plugin::compute_traj_indices()
         if (mode == TRAJ_3D_RIBBON_GPU && !hide_trajs) {
             traj_indices->insert(traj_indices->end(),
                     ellips_data->dynamics.trajs[p]->indices.begin() + (start_offset * 2),
-                    ellips_data->dynamics.trajs[p]->indices.begin() + (end_offset * 2));
+                    ellips_data->dynamics.trajs[p]->indices.begin() + (end_offset * 2) - 1);
             // determine end of primitive
             traj_indices->push_back(restart_id);
         }
+
         if (mode == TRAJ_3D_RIBBON && !hide_trajs) {
             if (traj_renderer_3D_ribbon.indices_top.size() > 0){
                 traj_3D_ribbon_indices->insert(traj_3D_ribbon_indices->end(),
