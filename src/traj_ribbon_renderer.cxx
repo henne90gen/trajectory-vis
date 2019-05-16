@@ -104,7 +104,7 @@ namespace ellipsoid_trajectory {
         glBindVertexArray(0);
     }
 
-    void traj_ribbon_renderer::draw(context& ctx, vec3 view_position)
+    void traj_ribbon_renderer::draw(context& ctx)
     {
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);

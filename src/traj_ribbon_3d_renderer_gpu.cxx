@@ -135,7 +135,7 @@ namespace ellipsoid_trajectory {
         material = _material;
     }
 
-    void traj_ribbon_3d_renderer_gpu::draw(context& ctx, vec3 view_position)
+    void traj_ribbon_3d_renderer_gpu::draw(context& ctx)
     {
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
@@ -146,7 +146,6 @@ namespace ellipsoid_trajectory {
         prog.set_uniform(ctx, "tick_sample_count", tick_sample_count);
         prog.set_uniform(ctx, "height", height);
 
-        prog.set_uniform(ctx, "view_pos", view_position);
         prog.set_uniform(ctx, "light.ambient", scene_light->light.ambient);
         prog.set_uniform(ctx, "light.diffuse", scene_light->light.diffuse);
         prog.set_uniform(ctx, "light.specular", scene_light->light.specular);

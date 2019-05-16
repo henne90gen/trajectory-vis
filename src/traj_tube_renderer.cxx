@@ -166,7 +166,7 @@ namespace ellipsoid_trajectory {
         material = _material;
     }
 
-    void traj_tube_renderer::draw(context& ctx, vec3 view_position)
+    void traj_tube_renderer::draw(context& ctx)
     {
         // TODO: change winding order for ellipsoids
         // work around for wrong winding order of triangles (here clockwise)
@@ -179,7 +179,6 @@ namespace ellipsoid_trajectory {
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
 
-        prog.set_uniform(ctx, "view_pos", view_position);
         prog.set_uniform(ctx, "light.ambient", scene_light->light.ambient);
         prog.set_uniform(ctx, "light.diffuse", scene_light->light.diffuse);
         prog.set_uniform(ctx, "light.specular", scene_light->light.specular);

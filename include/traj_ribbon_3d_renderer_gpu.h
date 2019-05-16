@@ -28,7 +28,7 @@ namespace ellipsoid_trajectory {
         void update_material(Material _material);
 
         // enables shader and VAO and draws elements determined by EBO
-        void draw(cgv::render::context& ctx, vec3 view_position);
+        void draw(cgv::render::context& ctx);
 
         // determine if it is the first rendering pass for this render
         bool initial;

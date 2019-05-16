@@ -135,7 +135,6 @@ private:
     bool hide_trajs;
     int tick_marks_sample;
     float ribbon_height;
-    vec3 view_position;
     traj_line_renderer traj_renderer_line;
     traj_ribbon_renderer traj_renderer_ribbon;
     traj_ribbon_3d_renderer traj_renderer_3D_ribbon;

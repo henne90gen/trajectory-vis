@@ -15,7 +15,11 @@ struct Light {
     vec3 specular;
 };
 
-uniform vec3 view_pos;
+// //***** begin interface of view.glsl ***********************************
+mat4 get_modelview_matrix();
+// //***** end interface of view.glsl ***********************************
+
+
 uniform Material material;
 uniform Light light;
 
@@ -24,14 +28,15 @@ vec3 compute_light(vec3 position_world_space, vec3 normal_world_space)
     // ambient
     vec3 ambient = light.ambient * material.ambient;
     
-    // diffuse 
+    // diffuse
     vec3 norm = normalize(normal_world_space);
     vec3 lightDir = normalize(light.position - position_world_space);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = light.diffuse * (diff * material.diffuse);
     
     // specular
-    vec3 viewDir = normalize(view_pos - position_world_space);
+    mat4 IV = inverse(get_modelview_matrix());
+    vec3 viewDir = normalize(IV[3].xyz - position_world_space);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * (spec * material.specular);
@@ -45,14 +50,15 @@ vec3 compute_light_on_color(vec3 position_world_space, vec3 normal_world_space, 
     // vec3 ambient =  light.ambient * (0.2 * material.ambient + 0.8 * color);
     vec3 ambient =  light.ambient * material.ambient;
     
-    // diffuse 
+    // diffuse
     vec3 norm = normalize(normal_world_space);
     vec3 lightDir = normalize(light.position - position_world_space);
     float diff = max(dot(norm, lightDir), 0.0);
     vec3 diffuse = light.diffuse * (diff * material.diffuse);
     
     // specular
-    vec3 viewDir = normalize(view_pos - position_world_space);
+    mat4 IV = inverse(get_modelview_matrix());
+    vec3 viewDir = normalize(IV[3].xyz - position_world_space);
     vec3 reflectDir = reflect(-lightDir, norm);  
     float spec = pow(max(dot(viewDir, reflectDir), 0.0), material.shininess);
     vec3 specular = light.specular * (spec * material.specular);

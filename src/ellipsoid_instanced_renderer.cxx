@@ -162,7 +162,7 @@ namespace ellipsoid_trajectory {
         material = _material;
     }
 
-    void ellipsoid_instanced_renderer::draw(context& ctx, vec3 view_position)
+    void ellipsoid_instanced_renderer::draw(context& ctx)
     {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_2D);
@@ -178,7 +178,6 @@ namespace ellipsoid_trajectory {
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
 
-        prog.set_uniform(ctx, "view_pos", view_position);
         prog.set_uniform(ctx, "light.ambient", scene_light->light.ambient);
         prog.set_uniform(ctx, "light.diffuse", scene_light->light.diffuse);
         prog.set_uniform(ctx, "light.specular", scene_light->light.specular);

@@ -28,7 +28,7 @@ namespace ellipsoid_trajectory {
         void update_material(Material _material);
 
         // enables shader and VAO and draws elements determined by EBO
-        void draw(cgv::render::context& ctx, vec3 view_position);
+        void draw(cgv::render::context& ctx);
 
         void create_vertices(std::vector<vec3>& vertices_out, std::vector<vec4>& colors_out, std::vector<vec3>& normals_out, std::vector<vec3>& positions_in, vec3 main_axis_in, std::vector<vec3>& normals_in, std::vector<vec4>& orientations_in, std::vector<vec4>&colors_in);
         void reserve_memory(size_t trajs, size_t time_steps);
