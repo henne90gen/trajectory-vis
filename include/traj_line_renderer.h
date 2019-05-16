@@ -27,7 +27,7 @@ namespace ellipsoid_trajectory {
         void update_position_buffer(std::vector<vec3>& positions);
 
         // enables shader and VAO and draws elements determined by EBO
-        void draw(cgv::render::context& ctx, mat view, mat projection);
+        void draw(cgv::render::context& ctx);
 
         // determine if it is the first rendering pass for this render
         bool initial;
@@ -42,8 +42,5 @@ namespace ellipsoid_trajectory {
         unsigned int VBO_positions;
         unsigned int VBO_colors;
         unsigned int nr_elements;
-
-        // model matrix (here not really used yet)
-        mat model;
     };
 }

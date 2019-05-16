@@ -17,7 +17,6 @@
 #include "ellipsoid_instanced_renderer.h"
 #include "traj_velocity_renderer.h"
 #include "data.h"
-#include "view_projection.h"
 #include "lighting.h"
 
 
@@ -106,10 +105,10 @@ private:
     bool cut_trajs;
     bool create_equidistant;
     float split_tolerance;
-    int scanned_end_time;
-    int start_time_loading;
-    int end_time_loading;
-    int time_resolution;
+    int scanned_time_steps;
+    int start_load_time_step;       // range [1-N]
+    int end_load_time_step;         // range [1-N]
+    int time_step_resolution;
     std::string directory_name;
 
     // store all scanned files oredered by their id
@@ -180,6 +179,7 @@ private:
     bool hide_coord;
     bool hide_stationaries;
     bool unchanged_view;
+    
 
     // environment renderer (bounding box, stationary particles ...)
     traj_line_renderer b_box_renderer;
@@ -201,9 +201,6 @@ private:
     // update material for all renderer
     void update_material();
 
-    // current view
-    // storage and computation of view and projection matrix
-    view_projection_matrix* vp_matrices;
     // get current view (position etc..)
     cgv::render::view* view_ptr;
 

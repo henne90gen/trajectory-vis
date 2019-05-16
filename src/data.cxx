@@ -33,7 +33,7 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
     file.close();
 
     // set overall number of time steps and particles
-    max_time_steps = ceil((end - (start - 1)) / (time_resolution * 1.0f));
+    max_time_steps = ceil((end - start + 1) / (time_resolution * 1.0f));
     size_t number_particles = (size_t) s_number_particles;
 
     // reserve size of all vectors
@@ -59,7 +59,7 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
     bool success = true;
     size_t index = 0;
     // parse data of each file
-    for (int i = start - 1; i < end; i++) {
+    for (int i = start; i <= end; i++) {
         // just read every x-th time step
         if (i % time_resolution == 0) {
             std::string file_name = files[i].second;
@@ -84,11 +84,6 @@ bool data::load(std::vector<std::pair<double, std::string>>& files, int start, i
 void data::post_process(bool cut, bool same_start, bool create_equidistant, float tolerance)
 {
     std::cout << "post processing of data ... " << std::endl;
-
-    // for(int i = 1; i < tmp_data.times.size(); i++) {
-    //     if (tmp_data.times[i-1] > tmp_data.times[i])
-    //         std::cerr << "time error" << std::endl;
-    // }
 
     // 1. store axes of ellipsoids in a grouped way
     dynamics.axis_ids.reserve(tmp_data.positions.size());
@@ -423,6 +418,7 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
     for (size_t p = 0; p < dynamics.trajs.size(); p++) {
         dynamics.trajs[p]->angular_velocities.resize(dynamics.trajs[p]->orientations.size());
         dynamics.trajs[p]->velocities.resize(dynamics.trajs[p]->orientations.size());
+
         for (size_t t = 0; t < dynamics.trajs[p]->orientations.size() - 1; t++) {
             // compute angular velocity between current and next time step
             // quaternion that q * q0 = q1 --> q = q1 * conj(q0) (for unit length quaternions)
@@ -448,8 +444,9 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
             dynamics.trajs[p]->velocities[t] = dynamics.trajs[p]->positions[t + 1] - 
                                                dynamics.trajs[p]->positions[t];
         }
-        dynamics.trajs[p]->angular_velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
-        dynamics.trajs[p]->velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
+
+        dynamics.trajs[p]->angular_velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
+        dynamics.trajs[p]->velocities[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
     }
 
 
@@ -457,6 +454,7 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
     std::cout << "  .. compute normals for each time step" << std::endl;
     for (size_t p = 0; p < dynamics.trajs.size(); p++) {
         dynamics.trajs[p]->main_axis_normals.resize(dynamics.trajs[p]->orientations.size());
+
         for (size_t t = 0; t < dynamics.trajs[p]->orientations.size() - 1; t++) {
             // compute orientated main axis (assumes longest axis at position 0)
             // TODO: compute for all axis
@@ -466,7 +464,8 @@ void data::post_process(bool cut, bool same_start, bool create_equidistant, floa
 
             dynamics.trajs[p]->main_axis_normals[t] = n;
         }
-        dynamics.trajs[p]->main_axis_normals[dynamics.trajs[p]->orientations.size() - 1] = vec3(0.0f, 0.0f, 0.0f);
+
+        dynamics.trajs[p]->main_axis_normals[dynamics.trajs[p]->orientations.size() - 1] = vec3(NAN, NAN, NAN);
         // std::cout << dynamics.trajs[p]->main_axis_normals.size() << std::endl;
     }
 

@@ -27,7 +27,7 @@ namespace ellipsoid_trajectory {
         void set_color(bool use_value_color);
 
         // enables shader and VAO and draws elements determined by EBO
-        void draw(cgv::render::context& ctx, mat view, mat projection);
+        void draw(cgv::render::context& ctx);
 
         // determine if it is the first rendering pass for this render
         bool initial;

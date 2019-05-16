@@ -1,2 +1,4 @@
 files:traj_ribbon_shader
+vertex_file:view.glsl
+fragment_file:view.glsl
 fragment_file:traj_light.glsl

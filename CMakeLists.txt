@@ -50,7 +50,6 @@ add_library(trajectory_vis
     src/traj_ribbon_3d_renderer_gpu.cxx
     src/traj_velocity_renderer.cxx
     src/ellipsoid_instanced_renderer.cxx
-    src/view_projection.cxx
     src/lighting.cxx
     src/math_utils.cxx
 
@@ -67,7 +66,6 @@ add_library(trajectory_vis
     include/traj_tube_renderer.h
     include/traj_velocity_renderer.h
     include/types.h
-    include/view_projection.h
 
     # Shader Files
     ${SHADERS})
@@ -128,12 +126,17 @@ source_group("Shaders" FILES ${SHADERS})
 # distinguish different platforms.
 get_target_property(RUNTIME_OUTPUT trajectory_vis RUNTIME_OUTPUT_DIRECTORY)
 
-# Just copy all shader files after successful build into shader/ next to bin/ directory.
+# Build rules for shader files: Copy shader files into shader/ next to bin/ directory
 foreach(shader IN LISTS SHADERS)
-    add_custom_command(TARGET trajectory_vis POST_BUILD
+    add_custom_command(
+        OUTPUT ${RUNTIME_OUTPUT}/../${shader}
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             ${CMAKE_CURRENT_SOURCE_DIR}/${shader}
-            ${RUNTIME_OUTPUT}/../${shader})
+            ${RUNTIME_OUTPUT}/../${shader}
+        MAIN_DEPENDENCY ${shader})
+
+    # Add copied shader file to private source file of the target
+    target_sources(trajectory_vis PRIVATE ${RUNTIME_OUTPUT}/../${shader})
 endforeach()
 
 

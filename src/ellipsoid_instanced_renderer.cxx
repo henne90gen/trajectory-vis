@@ -162,10 +162,15 @@ namespace ellipsoid_trajectory {
         material = _material;
     }
 
-    void ellipsoid_instanced_renderer::draw(context& ctx, mat view, mat projection, vec3 view_position)
+    void ellipsoid_instanced_renderer::draw(context& ctx)
     {
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture_2D);
+
+        // TODO: change winding order for ellipsoids
+        // work around for wrong winding order of triangles (here clockwise)
+        // therefore culling the front faces instead of back faces does the trick
+        glCullFace(GL_FRONT);
         
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
@@ -173,9 +178,6 @@ namespace ellipsoid_trajectory {
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
 
-        prog.set_uniform(ctx, "view", view);
-        prog.set_uniform(ctx, "projection", projection);
-        prog.set_uniform(ctx, "view_pos", view_position);
         prog.set_uniform(ctx, "light.ambient", scene_light->light.ambient);
         prog.set_uniform(ctx, "light.diffuse", scene_light->light.diffuse);
         prog.set_uniform(ctx, "light.specular", scene_light->light.specular);
@@ -197,5 +199,7 @@ namespace ellipsoid_trajectory {
         // disable everything again
         glBindVertexArray(0);
         prog.disable(ctx);
+
+        glCullFace(GL_BACK);
     }
 }

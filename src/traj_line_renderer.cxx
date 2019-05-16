@@ -11,9 +11,6 @@ namespace ellipsoid_trajectory {
 
     traj_line_renderer::traj_line_renderer()
     {
-        model = cgv::math::mat<float>(4,4);
-        model.identity();
-
         initial = true;
         nr_elements = 0;
     }
@@ -106,16 +103,13 @@ namespace ellipsoid_trajectory {
         glBufferData(GL_ARRAY_BUFFER, positions.size() * 3 * sizeof(float), (float*)positions[0], GL_DYNAMIC_DRAW);
     }
 
-    void traj_line_renderer::draw(context& ctx, mat view, mat projection)
+    void traj_line_renderer::draw(context& ctx)
     {
         // enable VAO and shader with all its variables
         glBindVertexArray(VAO);
 
         // enable shader and set all uniform shader variables
         prog.enable(ctx);
-        prog.set_uniform(ctx, "model", model);
-        prog.set_uniform(ctx, "view", view);
-        prog.set_uniform(ctx, "projection", projection);
 
         // draw call
         // glDrawElements(GL_LINES, nr_elements, GL_UNSIGNED_INT, 0);

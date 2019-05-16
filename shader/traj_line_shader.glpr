@@ -1,1 +1,2 @@
 files:traj_line_shader
+vertex_file:view.glsl
