@@ -11,6 +11,9 @@ set(SHADER_PATH ${CMAKE_SOURCE_DIR}/shader)
 set(GUI_FILES "")
 set(CONFIG_FILES "")
 
+# Additional, specific CGV packages
+cgv_find_package(ANNf)
+
 # Source files
 file(GLOB_RECURSE SOURCES RELATIVE ${CMAKE_CURRENT_SOURCE_DIR} "*.cxx")
 # Header files
@@ -25,7 +28,7 @@ include_directories(
 
 # Setup application plugin target
 cgv_add_module(${PROJECT_NAME} ${SOURCES} ${IMG_SOURCES} ${HEADERS} ${SHADER_SOURCES} ${IMAGES})
-target_link_libraries(${PROJECT_NAME} ${OPENGL_LIBRARIES} ${cgv_LIBRARIES})
+target_link_libraries(${PROJECT_NAME} ${OPENGL_LIBRARIES} ${cgv_LIBRARIES} ANNf)
 cgv_test_shaders(${PROJECT_NAME} ${SHADER_SOURCES})
 set_target_properties(${PROJECT_NAME} PROPERTIES FOLDER "${FOLDER_NAME_APPLICATION_PLUGINS}")
 

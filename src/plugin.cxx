@@ -12,6 +12,7 @@
 #include <cgv/gui/trigger.h>
 #include "plugin.h"
 #include "math_utils.h"
+#include "metatube.h"
 
 using namespace cgv::base;
 using namespace cgv::gui;
@@ -88,6 +89,9 @@ plugin::plugin(const char* name) : group(name)
     // trajectory selection
     single_traj_id = 0;
     display_single_traj = false;
+
+	// trajectory export
+	exact_metatube = false;
 
     // handling of index vectors
     out_of_date = true;
@@ -419,7 +423,26 @@ void plugin::create_gui()
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
 
-        align("\b");
+		// Eport
+		add_control(
+			"Extract exact metatube shape (very slow)", exact_metatube, "check",
+			"tooltip='When disabled, a simple spherical tube with radius equal to the mean of the ellipsoid axes will be generated. When"
+			" enabled, the exact shape of the metatube formed by the union of all oriented hyper-ellipsoids along the trajectory will be extracted.';"
+		);
+		connect_copy(add_button(
+			"Export selected as tube mesh",
+			"tooltip='Writes a .ply triangle mesh representing the metatube formed by the ellipsoid samples from the selected trajectory';"
+		)->click,
+			rebind(this, &plugin::export_metatube)
+		);
+		connect_copy(add_button(
+			"Export all as tube mesh",
+			"tooltip='Writes the metatubes formed by all the trajectories in the data set to individual .ply files';"
+		)->click,
+			rebind(this, &plugin::export_all)
+		);
+
+		align("\b");
         end_tree_node(display_single_traj);
     }
 
@@ -1191,6 +1214,229 @@ void plugin::draw(context& ctx) {
     }
 
     glDisable(GL_CULL_FACE);
+}
+
+void plugin::export_metatube (unsigned traj_id, bool implicit_progress)
+{
+	// Convenience shortcut to selected trajectory and corresponding ellipsoid axes
+	auto traj = ellips_data->dynamics.trajs[traj_id];
+	const vec3 &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[traj_id]];
+
+
+	////
+	// Extract mesh
+
+	// Setup surface extraction
+	// - setup metatube implicit function with trajectory data
+	metatube<float> tube(
+		traj->positions, traj->orientations, ellips_data->axes[ellips_data->dynamics.axis_ids[traj_id]]
+	);
+	// - setup extraction handler (to output vertices as points on the fly - for now)
+	surface_extraction_handler<float> handler;
+	// - setup mesh extraction module
+	cgv::media::mesh::dual_contouring<float, float> extractor(tube, &handler, 0.01f, 8, 0);
+	handler.mesh = &extractor;
+
+	// Determine sampling grid
+	// - resolution
+	#ifdef _DEBUG
+		#define DC_SAMPLING_RES_TARGET 8
+	#else
+		#define DC_SAMPLING_RES_TARGET 8
+	#endif
+	const unsigned min_extend_id = get_ellipsoid_min_axis_id(axes),
+	               mid_extend_id = get_ellipsoid_mid_axis_id(axes),
+	               max_extend_id = get_ellipsoid_max_axis_id(axes);
+	handler.cellsize = axes[min_extend_id]*2.0f / float(DC_SAMPLING_RES_TARGET);
+	// - sampling domain (do we even need this?)
+	cgv::media::axis_aligned_box<float, 3> domain = discretize(traj->b_box, handler.cellsize);
+
+	// Estimate if tube is too flat for 1st-order MLS-approximant
+	bool use_mls = exact_metatube && ((axes[max_extend_id] < axes[min_extend_id]*2.5f) ? true : false);
+
+	// Scan-convert (kind of) the tube
+	if (use_mls) for (unsigned i=0; i<traj->positions.size(); /* no implicit increment */)
+	{
+		// Setup current sampling area
+		i = tube.set_window(i, handler.cellsize);
+
+		// Adapt resolution to current sampling area so that the grid cell size remains
+		// the same
+		unsigned resx = unsigned(tube.bbox_sampling.get_extent().x() / handler.cellsize),
+		         resy = unsigned(tube.bbox_sampling.get_extent().y() / handler.cellsize),
+		         resz = unsigned(tube.bbox_sampling.get_extent().z() / handler.cellsize);
+
+		// Extract metatube iso surface in current sampling area
+		extractor.extract(0, tube.bbox_sampling, resx, resy, resz, implicit_progress);
+	}
+
+	//// [DEBUG] ////
+	/*if (use_mls)
+	{
+		std::stringstream fn;
+		fn << "traj_" << std::setfill('0') << std::setw(6) << traj_id << "_pcloud.obj";
+		std::ofstream file(fn.str());
+		handler.write_obj(file);
+	}*/
+	//// [/DEBUG] ///
+
+	// Tesselate by moving along trajectory and projecting onto MLS surface defined by
+	// extracted iso surface samples
+	// - init
+	point_set_surface mls(handler.points, 5);
+	std::vector<vec3> verts, nrmls;
+	verts.reserve(unsigned(float(handler.points.size())*0.75f));
+	nrmls.reserve(verts.size());
+	// - main loop: move along trajectory
+	float extrusion = (axes[max_extend_id] + axes[mid_extend_id] + axes[min_extend_id]) / 3.0f;
+	unsigned i_last = 0, seg_counts = 0;
+	for (unsigned i=1; i<traj->positions.size(); i++)
+	{
+		// Convencience shortcuts
+		unsigned &c = seg_counts;
+		const vec3 &pos = traj->positions[i];
+
+		// Move forward
+		vec3 travel_dir = pos - traj->positions[i_last];
+		if (travel_dir.length() >= extrusion/2.0f)
+		{
+			// Increase segment counter
+			c++;
+
+			// Create points of a circle on current cross-section plane at current sample
+			// - normalize travel_dir to double as plane normal
+			travel_dir.normalize();
+			// - check if sample 0 was already handled
+			#define DC_TESS_SECTIONS 12
+			if (i_last == 0)
+			{
+				const vec3 &pos0 = traj->positions[0];
+				// - establish coordinate frame on cross-section plane
+				vec3 tmp = plane_project(vec3(0,0,0), travel_dir, pos0),
+				     refx = cgv::math::normalize(tmp - pos0),
+				     refy = cgv::math::cross(travel_dir, refx);
+				// - circle around the travel direction vector
+				for (unsigned j=0; j<DC_TESS_SECTIONS; j++)
+				{
+					const float
+						param = float(M_PI)*float(2*j)/float(DC_TESS_SECTIONS), // parametrization
+						u = std::cos(param), v = std::sin(param);               // of 2D circle
+					vec3 extrusion_dir = u*refx + v*refy,
+					     extruded_vert = pos0 + extrusion*extrusion_dir;
+					if (use_mls)
+						verts.push_back(mls.projectPoint(extruded_vert, &extrusion_dir));
+					else
+						verts.push_back(extruded_vert);
+					nrmls.push_back(extrusion_dir);
+				}
+			}
+			// - establish coordinate frame on cross-section plane
+			vec3 ref  = verts[(c-1)*DC_TESS_SECTIONS],
+			     tmp  = plane_project(ref, travel_dir, pos),
+			     refx = cgv::math::normalize(tmp-pos),
+			     refy = cgv::math::cross(travel_dir, refx);
+			// - circle around the travel direction vector
+			for (unsigned j=0; j<DC_TESS_SECTIONS; j++)
+			{
+				const float
+					param = float(M_PI)*float(2*j)/float(DC_TESS_SECTIONS), // parametrization
+					u = std::cos(param), v = std::sin(param);               // of 2D circle
+				vec3 extrusion_dir = u*refx + v*refy,
+				     extruded_vert = pos + extrusion*extrusion_dir;
+				if (use_mls)
+					verts.push_back(mls.projectPoint(extruded_vert, &extrusion_dir));
+				else
+					verts.push_back(extruded_vert);
+				nrmls.push_back(extrusion_dir);
+			}
+			// - triangulate
+			for (unsigned j=1; j<DC_TESS_SECTIONS+1; j++)
+			{
+				handler.triangles.push_back(triangle(
+					(c-1)*DC_TESS_SECTIONS + (j-1),
+					(c-1)*DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS,
+					  c  *DC_TESS_SECTIONS + (j-1)
+				));
+				handler.triangles.push_back(triangle(
+					  c  *DC_TESS_SECTIONS + (j-1),
+					(c-1)*DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS,
+					  c  *DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS
+				));
+			}
+			// - update state
+			i_last = i;
+		}
+	}
+	// - end cap, trailing
+	#define DC_TESS_ENDCAPS_VCOUNT 1
+	vec3 endcap_extrusion(std::move(
+		cgv::math::normalize(std::move(
+			traj->positions[0] - traj->positions[1]
+		)))
+	);
+	unsigned last_idx = (unsigned)verts.size();
+	verts.push_back(std::move(traj->positions[0] + endcap_extrusion*extrusion));
+	nrmls.push_back(std::move(endcap_extrusion));
+	for (unsigned j=1; j<=DC_TESS_SECTIONS; j++)
+		handler.triangles.push_back(triangle(
+			last_idx, j%DC_TESS_SECTIONS, j-1
+		));
+	// - end cap, leading
+	endcap_extrusion = std::move(
+		cgv::math::normalize(std::move(
+			traj->positions.back() - traj->positions[traj->positions.size()-2]
+		))
+	);
+	last_idx = (unsigned)verts.size();
+	verts.push_back(std::move(traj->positions.back() + endcap_extrusion*extrusion));
+	nrmls.push_back(std::move(endcap_extrusion));
+	for (unsigned j=1; j<=DC_TESS_SECTIONS; j++)
+		handler.triangles.push_back(triangle(
+			last_idx,
+			seg_counts*DC_TESS_SECTIONS + j-1,
+			seg_counts*DC_TESS_SECTIONS + j%DC_TESS_SECTIONS
+		));
+	// - replace with new tesselation
+	handler.points = std::move(verts); handler.normals = std::move(nrmls);
+
+
+	////
+	// Write .obj and .ply files
+
+	// Filename template
+	std::stringstream filename;
+	filename << "traj_" << std::setfill('0') << std::setw(6) << traj_id;
+	std::ofstream
+		//objfile(filename.str() + ".obj"),
+		plyfile(filename.str() + ".ply");
+
+	// Write mesh
+	//handler.write_obj(objfile);
+	handler.write_ply(plyfile);
+}
+
+void plugin::export_metatube (void)
+{
+	export_metatube(single_traj_id, true);
+}
+
+void plugin::export_all(void)
+{
+	std::cout << std::endl << std::endl << std::endl << "[BEGIN] METATUBE EXTRACTION" << "===========================";
+
+	//#pragma omp parallel for schedule(dynamic)
+	for (signed i=0; unsigned(i)<ellips_data->dynamics.trajs.size(); i++)
+	{
+		std::cout << std::endl << std::endl << "Traj #" << i << std::endl;
+		#ifdef _DEBUG
+			export_metatube(i, true);
+		#else
+			export_metatube(i, false);
+		#endif
+	}
+
+	std::cout << std::endl << std::endl << "[END] METATUBE EXTRACTION" << "========================="
+	          << std::endl << std::endl << std::endl;
 }
 
 void plugin::render_coordinate_system(cgv::render::context& ctx)
