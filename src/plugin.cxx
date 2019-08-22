@@ -441,6 +441,13 @@ void plugin::create_gui()
 		)->click,
 			rebind(this, &plugin::export_all)
 		);
+		connect_copy(add_button(
+			"Export all as .csv",
+			"tooltip='Writes the trajectory samples to a .csv file containing one line per sample. The first value of each line is be the trajectory"
+			" ID, followed by sample xyz position, followed by attributes (if any).';"
+		)->click,
+			rebind(this, &plugin::export_csv)
+		);
 
 		align("\b");
         end_tree_node(display_single_traj);
@@ -1437,6 +1444,39 @@ void plugin::export_all(void)
 
 	std::cout << std::endl << std::endl << "[END] METATUBE EXTRACTION" << "========================="
 	          << std::endl << std::endl << std::endl;
+}
+
+void plugin::export_csv(void)
+{
+	// Convenience shorthands
+	auto &trajs = ellips_data->dynamics.trajs;
+
+	// Generate filename
+	std::stringstream filename;
+	filename << "trajectories_" << generator_seed << trajs.size() << trajs[0]->positions.size() << ".csv";
+	std::cout << std::endl << "Exporting trajectories to file '" << filename.str() << "'...";
+
+	// Write data
+	std::ofstream csvfile(filename.str());
+	// - header
+	csvfile << "traj_id,pos_x,pos_y,pos_z,radius" << std::endl;
+	// - samples
+	for (unsigned t=0; t<trajs.size(); t++)
+	{
+		const auto &traj = trajs[t];
+		const auto &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[t]];
+		const auto radius = (
+			  axes[get_ellipsoid_min_axis_id(axes)]
+			+ axes[get_ellipsoid_mid_axis_id(axes)]
+			+ axes[get_ellipsoid_max_axis_id(axes)]
+		) / 3.0f;
+
+		for (const auto &pos : traj->positions)
+			csvfile << t << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << radius << std::endl;
+	}
+
+	// Done!
+	std::cout << " Done!" << std::endl << std::endl;
 }
 
 void plugin::render_coordinate_system(cgv::render::context& ctx)

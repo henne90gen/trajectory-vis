@@ -97,6 +97,8 @@ public:
 	void export_metatube(void);
 	// Exports all trajectories as metatubes in individual .obj and .ply files
 	void export_all(void);
+	// Exports all trajectories into a .csv text file
+	void export_csv(void);
 	// Whether to recover exact metatube shape based on ellipsoid movement
 	bool exact_metatube;
 
