@@ -437,7 +437,7 @@ void plugin::create_gui()
 		);
 		connect_copy(add_button(
 			"Export all as tube mesh",
-			"tooltip='Writes the metatubes formed by all the trajectories in the data set to individual .ply files';"
+			"tooltip='Writes the metatubes formed by all the trajectories in the data set to individual .ply files.';"
 		)->click,
 			rebind(this, &plugin::export_all)
 		);
@@ -447,6 +447,12 @@ void plugin::create_gui()
 			" ID, followed by sample xyz position, followed by attributes (if any).';"
 		)->click,
 			rebind(this, &plugin::export_csv)
+		);
+		connect_copy(add_button(
+			"Export all as .bezdat",
+			"tooltip='Writes all trajectoreis to a single .bezdat file, where they are being represented as hermite splines.';"
+		)->click,
+			rebind(this, &plugin::export_bezdat)
 		);
 
 		align("\b");
@@ -1473,6 +1479,132 @@ void plugin::export_csv(void)
 
 		for (const auto &pos : traj->positions)
 			csvfile << t << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << radius << std::endl;
+	}
+
+	// Done!
+	std::cout << " Done!" << std::endl << std::endl;
+}
+
+void plugin::export_bezdat(void)
+{
+	// Hermite->Bezier basis transform
+	constexpr auto _1o3(mat4::value_type(1.0/3.0));
+	struct hermite_interpolation_helper
+	{
+		const mat4::value_type data[16] = {
+			1, 0,     0,    0,   // transposed because we use column
+			1, _1o3,  0,    0,   // vectors and cgv::math::fmat is
+			0, 0,    -_1o3, 1,   // column major
+			0, 0,     0,    1    //
+		};
+		const mat4& h2b(void) const	{ return *((mat4*)data); }
+	};
+	static const hermite_interpolation_helper helper;
+
+	// Convenience shorthands
+	auto &trajs = ellips_data->dynamics.trajs;
+
+	// Generate filename
+	std::stringstream filename;
+	filename << "trajectories_" << generator_seed << trajs.size() << trajs[0]->positions.size() << ".bezdat";
+	std::cout << std::endl << "Exporting trajectories to file '" << filename.str() << "'...";
+
+	// Write data
+	std::ofstream bzdfile(filename.str());
+	// - header
+	bzdfile << "BezDatA 1.0" << std::endl;
+	// - samples
+	unsigned long long points_written = 0;
+	for (unsigned t=0; t<trajs.size(); t++)
+	{
+		const auto &traj = trajs[t];
+		const auto &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[t]];
+		const auto radius = (
+			  axes[get_ellipsoid_min_axis_id(axes)]
+			+ axes[get_ellipsoid_mid_axis_id(axes)]
+			+ axes[get_ellipsoid_max_axis_id(axes)]
+		) / 3.0f;
+
+		// Control tangent data
+		unsigned N = traj->positions.size();
+		std::vector<vec3> m(N); std::vector<vec3::value_type> len(N);
+
+		// First control point and tangent
+		m[0] = std::move(traj->positions[1] - traj->positions[0]);
+		len[0] = m[0].length();
+		m[0] /= 2;
+
+		// 2nd to (N-1)-th control points and tangents
+		for (unsigned p=1; p<N-1; p++)
+		{
+			m[p] = std::move(
+				  std::move(traj->positions[p]   - traj->positions[p-1])
+				+ std::move(traj->positions[p+1] - traj->positions[p])
+			);
+			len[p] = m[p].length();
+			m[p] /= 2;
+		}
+
+		// Last control point and tangent
+		m[N-1] = std::move(traj->positions.back() - traj->positions[N-2]);
+		len[N-1] = m[N-1].length();
+		m[N-1] /= 2;
+
+		// Hermite interpolation
+		for (unsigned p=0; p<N-1; p++)
+		{
+			// Setup as hermite control matrix
+			cgv::math::fmat<mat4::value_type, 3, 4> M;
+			M.set_col(0, traj->positions[p]);
+			M.set_col(1, m[p]);
+			M.set_col(2, m[p+1]);
+			M.set_col(3, traj->positions[p+1]);
+
+			// Convert to bezier patch
+			M = std::move( M * helper.h2b() );
+
+			// Write patch control points to file
+			for (unsigned i=0; i<3; i++)
+				bzdfile
+					// item type
+					<< "PT "
+					// position
+					<< M.col(i).x() <<" "<< M.col(i).y() <<" "<< M.col(i).z() <<" "
+					// attributes
+					<< radius <<" "<< "128 128 128"
+					// newline
+					<< std::endl;
+		}
+		// Last point
+		bzdfile
+			// item type
+			<< "PT "
+			// position
+			<< traj->positions.back().x() <<" "<< traj->positions.back().y() <<" "<<
+			   traj->positions.back().z() <<" "
+			// attributes
+			<< radius << " " << "128 128 128"
+			// newline
+			<< std::endl;
+
+		// Write control point connectivity to file
+		for (unsigned p=0; p<N-1; p++)
+			bzdfile
+				// item type
+				<< "BC "
+				// 1st control point index
+				<< points_written + p*3 <<" "
+				// 2nd control point index
+				<< points_written + p*3 + 1 <<" "
+				// 3rd control point index
+				<< points_written + p*3 + 2 <<" "
+				// 4th control point index
+				<< points_written + p*3 + 3 <<" "
+				// newline
+				<< std::endl;
+
+		// Update start index for next trajectory
+		points_written += (N-1)*3 + 1;
 	}
 
 	// Done!

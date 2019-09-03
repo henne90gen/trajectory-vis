@@ -99,6 +99,8 @@ public:
 	void export_all(void);
 	// Exports all trajectories into a .csv text file
 	void export_csv(void);
+	// Exports all trajectories as hermite splines into single file in .bezdat format
+	void export_bezdat(void);
 	// Whether to recover exact metatube shape based on ellipsoid movement
 	bool exact_metatube;
 
