@@ -1551,6 +1551,7 @@ void plugin::export_bezdat(void)
 		m[N-1] /= 2;
 
 		// Hermite interpolation
+		cgv::media::color<unsigned char> color;
 		for (unsigned p=0; p<N-1; p++)
 		{
 			// Setup as hermite control matrix
@@ -1565,17 +1566,25 @@ void plugin::export_bezdat(void)
 
 			// Write patch control points to file
 			for (unsigned i=0; i<3; i++)
+			{
+				color.R() = unsigned char(time_colors[p].x()*255.0f);
+				color.G() = unsigned char(time_colors[p].y()*255.0f);
+				color.B() = unsigned char(time_colors[p].z()*255.0f);
 				bzdfile
 					// item type
 					<< "PT "
 					// position
 					<< M.col(i).x() <<" "<< M.col(i).y() <<" "<< M.col(i).z() <<" "
-					// attributes
-					<< radius <<" "<< "128 128 128"
+					// attributes - TODO: set radius and color to selectable attributes
+					<< radius <<" "<< color
 					// newline
 					<< std::endl;
+			}
 		}
 		// Last point
+		color.R() = unsigned char(time_colors.back().x()*255.0f);
+		color.G() = unsigned char(time_colors.back().y()*255.0f);
+		color.B() = unsigned char(time_colors.back().z()*255.0f);
 		bzdfile
 			// item type
 			<< "PT "
@@ -1583,7 +1592,7 @@ void plugin::export_bezdat(void)
 			<< traj->positions.back().x() <<" "<< traj->positions.back().y() <<" "<<
 			   traj->positions.back().z() <<" "
 			// attributes
-			<< radius << " " << "128 128 128"
+			<< radius << " " << color
 			// newline
 			<< std::endl;
 
