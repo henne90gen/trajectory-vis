@@ -1599,7 +1599,7 @@ void plugin::export_bezdat(void)
 				// 3rd control point index
 				<< points_written + p*3 + 2 <<" "
 				// 4th control point index
-				<< points_written + p*3 + 3 <<" "
+				<< points_written + p*3 + 3
 				// newline
 				<< std::endl;
 
