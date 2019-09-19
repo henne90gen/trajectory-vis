@@ -425,26 +425,26 @@ void plugin::create_gui()
 
 		// Eport
 		add_control(
-			"Extract exact metatube shape (very slow)", exact_metatube, "check",
+			"Mesh export: extract exact metatube shape (very slow)", exact_metatube, "check",
 			"tooltip='When disabled, a simple spherical tube with radius equal to the mean of the ellipsoid axes will be generated. When"
-			" enabled, the exact shape of the metatube formed by the union of all oriented hyper-ellipsoids along the trajectory will be extracted.';"
+			" enabled, the exact shape of the metatube formed by the blending of all oriented ellipsoids at the trajectory samples will be extracted (WIP).';"
 		);
 		connect_copy(add_button(
-			"Export selected as tube mesh",
-			"tooltip='Writes a .ply triangle mesh representing the metatube formed by the ellipsoid samples from the selected trajectory';"
+			"Export selected as tube mesh (WIP)",
+			"tooltip='Writes a .ply triangle mesh of the metatube formed by the currently selected trajectory.';"
 		)->click,
 			rebind(this, &plugin::export_metatube)
 		);
 		connect_copy(add_button(
-			"Export all as tube mesh",
-			"tooltip='Writes the metatubes formed by all the trajectories in the data set to individual .ply files.';"
+			"Export all as tube mesh (WIP)",
+			"tooltip='Writes triangle meshes of the metatubes of all trajectories in the data set to individual .ply files.';"
 		)->click,
 			rebind(this, &plugin::export_all)
 		);
 		connect_copy(add_button(
 			"Export all as .csv",
-			"tooltip='Writes the trajectory samples to a .csv file containing one line per sample. The first value of each line is be the trajectory"
-			" ID, followed by sample xyz position, followed by attributes (if any).';"
+			"tooltip='Writes all trajectories to a single .csv file containing one line per sample. The first value of each line is the trajectory"
+			" ID, followed by sample xyz position, followed by sample attributes (radius only so far).';"
 		)->click,
 			rebind(this, &plugin::export_csv)
 		);
