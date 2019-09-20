@@ -1,5 +1,6 @@
 #include <queue>
 #include <fstream>
+#include <limits>
 
 #include <cgv/base/register.h>
 #include <cgv/utils/ostream_printf.h>
@@ -92,6 +93,7 @@ plugin::plugin(const char* name) : group(name)
 
 	// trajectory export
 	exact_metatube = false;
+	reduction_multiple = 8;
 
     // handling of index vectors
     out_of_date = true;
@@ -423,11 +425,17 @@ void plugin::create_gui()
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
 
-		// Eport
+		// Export
 		add_control(
 			"Mesh export: extract exact metatube shape (very slow)", exact_metatube, "check",
 			"tooltip='When disabled, a simple spherical tube with radius equal to the mean of the ellipsoid axes will be generated. When"
 			" enabled, the exact shape of the metatube formed by the blending of all oriented ellipsoids at the trajectory samples will be extracted (WIP).';"
+		);
+		add_control(
+			".bezdat export: ellipsoid size multiplier for data reduction", reduction_multiple, "value_input",
+			"tooltip='Reduces the number of cubic bezier segments generated per trajectory. A new segment will be created only when the ellipsoid moved at"
+			" least as far as its \"radius\" (defined as the mean of its axis lengths) multiplied by this value. The tangents are still computed from the"
+			" original unreduced data (only getting adjusted in length), which makes the resulting cubic hermite spline approximate the unreduced data better.';"
 		);
 		connect_copy(add_button(
 			"Export selected as tube mesh (WIP)",
@@ -1487,6 +1495,19 @@ void plugin::export_csv(void)
 
 void plugin::export_bezdat(void)
 {
+	// Helper for lerp'ing colors
+	auto lerp = [] (const cgv::media::color<unsigned char> &c1,
+	                const cgv::media::color<unsigned char> &c2,
+	                vec3::value_type t)
+	            -> cgv::media::color<unsigned char>
+	{
+		typedef vec3::value_type real;
+		cgv::media::color<unsigned char> result;
+		result.R() = unsigned char( (1-t)*real(c1.R())  +  t*real(c2.R()) );
+		result.G() = unsigned char( (1-t)*real(c1.G())  +  t*real(c2.G()) );
+		result.B() = unsigned char( (1-t)*real(c1.B())  +  t*real(c2.B()) );
+		return std::move(result);
+	};
 	// Hermite->Bezier basis transform
 	constexpr auto _1o3(mat4::value_type(1.0/3.0));
 	struct hermite_interpolation_helper
@@ -1551,35 +1572,62 @@ void plugin::export_bezdat(void)
 		m[N-1] /= 2;
 
 		// Hermite interpolation
-		cgv::media::color<unsigned char> color;
-		for (unsigned p=0; p<N-1; p++)
+		const auto dist_thresh_sqr = std::pow(radius*reduction_multiple, 2);
+		unsigned N_exported = 0;
+		vec3 *P_prev = &(traj->positions[0]), *m_prev = &(m[0]);
+		cgv::media::color<unsigned char> color, color_prev;
+		color_prev.R() = unsigned char(time_colors[0].x()*255.0f);
+		color_prev.G() = unsigned char(time_colors[0].y()*255.0f);
+		color_prev.B() = unsigned char(time_colors[0].z()*255.0f);
+		for (unsigned p=1; p<N; p++)
 		{
+			// Skip samples that are too close to the previus control point
+			if ((traj->positions[p]-(*P_prev)).sqr_length() < dist_thresh_sqr)
+			{
+				// Handle this becoming the last (or potentially only) bezier segment
+				if ((traj->positions.back()-traj->positions[p]).sqr_length() < dist_thresh_sqr)
+					p = N-1;
+				else
+					continue;
+			}
+
+			// Adjust tangent length according to amount of data reduction
+			auto endpoints_dist = (traj->positions[p] - (*P_prev)).length();
+			vec3 m0 = std::move(std::move(cgv::math::normalize(*m_prev)) * endpoints_dist),
+			     m1 = std::move(std::move(cgv::math::normalize(  m[p] )) * endpoints_dist);
+
 			// Setup as hermite control matrix
 			cgv::math::fmat<mat4::value_type, 3, 4> M;
-			M.set_col(0, traj->positions[p]);
-			M.set_col(1, m[p]);
-			M.set_col(2, m[p+1]);
-			M.set_col(3, traj->positions[p+1]);
+			M.set_col(0, *P_prev);
+			M.set_col(1, m0);
+			M.set_col(2, m1);
+			M.set_col(3, traj->positions[p]);
 
-			// Convert to bezier patch
+			// Convert to bezier curve
 			M = std::move( M * helper.h2b() );
 
-			// Write patch control points to file
+			// Write curve control points to file
+			color.R() = unsigned char(time_colors[p].x()*255.0f);
+			color.G() = unsigned char(time_colors[p].y()*255.0f);
+			color.B() = unsigned char(time_colors[p].z()*255.0f);
 			for (unsigned i=0; i<3; i++)
 			{
-				color.R() = unsigned char(time_colors[p].x()*255.0f);
-				color.G() = unsigned char(time_colors[p].y()*255.0f);
-				color.B() = unsigned char(time_colors[p].z()*255.0f);
 				bzdfile
 					// item type
 					<< "PT "
 					// position
 					<< M.col(i).x() <<" "<< M.col(i).y() <<" "<< M.col(i).z() <<" "
 					// attributes - TODO: set radius and color to selectable attributes
-					<< radius <<" "<< color
+					<< radius <<" "<< lerp(color_prev, color, vec3::value_type(i)/vec3::value_type(3))
 					// newline
 					<< std::endl;
 			}
+
+			// Update state
+			P_prev = &(traj->positions[p]);
+			m_prev = &(m[p]);
+			color_prev = color;
+			N_exported++;
 		}
 		// Last point
 		color.R() = unsigned char(time_colors.back().x()*255.0f);
@@ -1595,25 +1643,26 @@ void plugin::export_bezdat(void)
 			<< radius << " " << color
 			// newline
 			<< std::endl;
+		N_exported++;
 
 		// Write control point connectivity to file
-		for (unsigned p=0; p<N-1; p++)
+		for (unsigned cp=0; cp<N_exported-1; cp++)
 			bzdfile
 				// item type
 				<< "BC "
 				// 1st control point index
-				<< points_written + p*3 <<" "
+				<< points_written + cp*3 <<" "
 				// 2nd control point index
-				<< points_written + p*3 + 1 <<" "
+				<< points_written + cp*3 + 1 <<" "
 				// 3rd control point index
-				<< points_written + p*3 + 2 <<" "
+				<< points_written + cp*3 + 2 <<" "
 				// 4th control point index
-				<< points_written + p*3 + 3
+				<< points_written + cp*3 + 3
 				// newline
 				<< std::endl;
 
 		// Update start index for next trajectory
-		points_written += (N-1)*3 + 1;
+		points_written += (N_exported-1)*3 + 1;
 	}
 
 	// Done!

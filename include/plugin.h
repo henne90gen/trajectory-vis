@@ -103,6 +103,8 @@ public:
 	void export_bezdat(void);
 	// Whether to recover exact metatube shape based on ellipsoid movement
 	bool exact_metatube;
+	// Ellipsoid size multiple to consult for data reduction during .bezdat export
+	vec3::value_type reduction_multiple;
 
 private:
     // ------------------------- data set -----------------------------------------------
