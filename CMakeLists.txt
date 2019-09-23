@@ -58,6 +58,7 @@ add_library(trajectory_vis
     include/ellipsoid_instanced_renderer.h
     include/lighting.h
     include/math_utils.h
+    include/metatube.h
     include/plugin.h
     include/traj_line_renderer.h
     include/traj_ribbon_3d_renderer_gpu.h

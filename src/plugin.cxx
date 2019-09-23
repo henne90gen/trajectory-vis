@@ -1,5 +1,6 @@
 #include <queue>
 #include <fstream>
+#include <limits>
 
 #include <cgv/base/register.h>
 #include <cgv/utils/ostream_printf.h>
@@ -12,6 +13,7 @@
 #include <cgv/gui/trigger.h>
 #include "plugin.h"
 #include "math_utils.h"
+#include "metatube.h"
 
 using namespace cgv::base;
 using namespace cgv::gui;
@@ -88,6 +90,10 @@ plugin::plugin(const char* name) : group(name)
     // trajectory selection
     single_traj_id = 0;
     display_single_traj = false;
+
+	// trajectory export
+	exact_metatube = false;
+	reduction_multiple = 8;
 
     // handling of index vectors
     out_of_date = true;
@@ -419,7 +425,45 @@ void plugin::create_gui()
             rebind(this, &plugin::set_traj_indices_out_of_date)
         );
 
-        align("\b");
+		// Export
+		add_control(
+			"Mesh export: extract exact metatube shape (very slow)", exact_metatube, "check",
+			"tooltip='When disabled, a simple spherical tube with radius equal to the mean of the ellipsoid axes will be generated. When"
+			" enabled, the exact shape of the metatube formed by the blending of all oriented ellipsoids at the trajectory samples will be extracted (WIP).';"
+		);
+		add_control(
+			".bezdat export: ellipsoid size multiplier for data reduction", reduction_multiple, "value_input",
+			"tooltip='Reduces the number of cubic bezier segments generated per trajectory. A new segment will be created only when the ellipsoid moved at"
+			" least as far as its \"radius\" (defined as the mean of its axis lengths) multiplied by this value. The tangents are still computed from the"
+			" original unreduced data (only getting adjusted in length), which makes the resulting cubic hermite spline approximate the unreduced data better.';"
+		);
+		connect_copy(add_button(
+			"Export selected as tube mesh (WIP)",
+			"tooltip='Writes a .ply triangle mesh of the metatube formed by the currently selected trajectory.';"
+		)->click,
+			rebind(this, &plugin::export_metatube)
+		);
+		connect_copy(add_button(
+			"Export all as tube mesh (WIP)",
+			"tooltip='Writes triangle meshes of the metatubes of all trajectories in the data set to individual .ply files.';"
+		)->click,
+			rebind(this, &plugin::export_all)
+		);
+		connect_copy(add_button(
+			"Export all as .csv",
+			"tooltip='Writes all trajectories to a single .csv file containing one line per sample. The first value of each line is the trajectory"
+			" ID, followed by sample xyz position, followed by sample attributes (radius only so far).';"
+		)->click,
+			rebind(this, &plugin::export_csv)
+		);
+		connect_copy(add_button(
+			"Export all as .bezdat",
+			"tooltip='Writes all trajectoreis to a single .bezdat file, where they are being represented as hermite splines.';"
+		)->click,
+			rebind(this, &plugin::export_bezdat)
+		);
+
+		align("\b");
         end_tree_node(display_single_traj);
     }
 
@@ -1191,6 +1235,438 @@ void plugin::draw(context& ctx) {
     }
 
     glDisable(GL_CULL_FACE);
+}
+
+void plugin::export_metatube (unsigned traj_id, bool implicit_progress)
+{
+	// Convenience shortcut to selected trajectory and corresponding ellipsoid axes
+	auto traj = ellips_data->dynamics.trajs[traj_id];
+	const vec3 &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[traj_id]];
+
+
+	////
+	// Extract mesh
+
+	// Setup surface extraction
+	// - setup metatube implicit function with trajectory data
+	metatube<float> tube(
+		traj->positions, traj->orientations, ellips_data->axes[ellips_data->dynamics.axis_ids[traj_id]]
+	);
+	// - setup extraction handler (to output vertices as points on the fly - for now)
+	surface_extraction_handler<float> handler;
+	// - setup mesh extraction module
+	cgv::media::mesh::dual_contouring<float, float> extractor(tube, &handler, 0.01f, 8, 0);
+	handler.mesh = &extractor;
+
+	// Determine sampling grid
+	// - resolution
+	#ifdef _DEBUG
+		#define DC_SAMPLING_RES_TARGET 8
+	#else
+		#define DC_SAMPLING_RES_TARGET 8
+	#endif
+	const unsigned min_extend_id = get_ellipsoid_min_axis_id(axes),
+	               mid_extend_id = get_ellipsoid_mid_axis_id(axes),
+	               max_extend_id = get_ellipsoid_max_axis_id(axes);
+	handler.cellsize = axes[min_extend_id]*2.0f / float(DC_SAMPLING_RES_TARGET);
+	// - sampling domain (do we even need this?)
+	cgv::media::axis_aligned_box<float, 3> domain = discretize(traj->b_box, handler.cellsize);
+
+	// Estimate if tube is too flat for 1st-order MLS-approximant
+	bool use_mls = exact_metatube && ((axes[max_extend_id] < axes[min_extend_id]*2.5f) ? true : false);
+
+	// Scan-convert (kind of) the tube
+	if (use_mls) for (unsigned i=0; i<traj->positions.size(); /* no implicit increment */)
+	{
+		// Setup current sampling area
+		i = tube.set_window(i, handler.cellsize);
+
+		// Adapt resolution to current sampling area so that the grid cell size remains
+		// the same
+		unsigned resx = unsigned(tube.bbox_sampling.get_extent().x() / handler.cellsize),
+		         resy = unsigned(tube.bbox_sampling.get_extent().y() / handler.cellsize),
+		         resz = unsigned(tube.bbox_sampling.get_extent().z() / handler.cellsize);
+
+		// Extract metatube iso surface in current sampling area
+		extractor.extract(0, tube.bbox_sampling, resx, resy, resz, implicit_progress);
+	}
+
+	//// [DEBUG] ////
+	/*if (use_mls)
+	{
+		std::stringstream fn;
+		fn << "traj_" << std::setfill('0') << std::setw(6) << traj_id << "_pcloud.obj";
+		std::ofstream file(fn.str());
+		handler.write_obj(file);
+	}*/
+	//// [/DEBUG] ///
+
+	// Tesselate by moving along trajectory and projecting onto MLS surface defined by
+	// extracted iso surface samples
+	// - init
+	point_set_surface mls(handler.points, 5);
+	std::vector<vec3> verts, nrmls;
+	verts.reserve(unsigned(float(handler.points.size())*0.75f));
+	nrmls.reserve(verts.size());
+	// - main loop: move along trajectory
+	float extrusion = (axes[max_extend_id] + axes[mid_extend_id] + axes[min_extend_id]) / 3.0f;
+	unsigned i_last = 0, seg_counts = 0;
+	for (unsigned i=1; i<traj->positions.size(); i++)
+	{
+		// Convencience shortcuts
+		unsigned &c = seg_counts;
+		const vec3 &pos = traj->positions[i];
+
+		// Move forward
+		vec3 travel_dir = pos - traj->positions[i_last];
+		if (travel_dir.length() >= extrusion/2.0f)
+		{
+			// Increase segment counter
+			c++;
+
+			// Create points of a circle on current cross-section plane at current sample
+			// - normalize travel_dir to double as plane normal
+			travel_dir.normalize();
+			// - check if sample 0 was already handled
+			#define DC_TESS_SECTIONS 12
+			if (i_last == 0)
+			{
+				const vec3 &pos0 = traj->positions[0];
+				// - establish coordinate frame on cross-section plane
+				vec3 tmp = plane_project(vec3(0,0,0), travel_dir, pos0),
+				     refx = cgv::math::normalize(tmp - pos0),
+				     refy = cgv::math::cross(travel_dir, refx);
+				// - circle around the travel direction vector
+				for (unsigned j=0; j<DC_TESS_SECTIONS; j++)
+				{
+					const float
+						param = float(M_PI)*float(2*j)/float(DC_TESS_SECTIONS), // parametrization
+						u = std::cos(param), v = std::sin(param);               // of 2D circle
+					vec3 extrusion_dir = u*refx + v*refy,
+					     extruded_vert = pos0 + extrusion*extrusion_dir;
+					if (use_mls)
+						verts.push_back(mls.projectPoint(extruded_vert, &extrusion_dir));
+					else
+						verts.push_back(extruded_vert);
+					nrmls.push_back(extrusion_dir);
+				}
+			}
+			// - establish coordinate frame on cross-section plane
+			vec3 ref  = verts[(c-1)*DC_TESS_SECTIONS],
+			     tmp  = plane_project(ref, travel_dir, pos),
+			     refx = cgv::math::normalize(tmp-pos),
+			     refy = cgv::math::cross(travel_dir, refx);
+			// - circle around the travel direction vector
+			for (unsigned j=0; j<DC_TESS_SECTIONS; j++)
+			{
+				const float
+					param = float(M_PI)*float(2*j)/float(DC_TESS_SECTIONS), // parametrization
+					u = std::cos(param), v = std::sin(param);               // of 2D circle
+				vec3 extrusion_dir = u*refx + v*refy,
+				     extruded_vert = pos + extrusion*extrusion_dir;
+				if (use_mls)
+					verts.push_back(mls.projectPoint(extruded_vert, &extrusion_dir));
+				else
+					verts.push_back(extruded_vert);
+				nrmls.push_back(extrusion_dir);
+			}
+			// - triangulate
+			for (unsigned j=1; j<DC_TESS_SECTIONS+1; j++)
+			{
+				handler.triangles.push_back(triangle(
+					(c-1)*DC_TESS_SECTIONS + (j-1),
+					(c-1)*DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS,
+					  c  *DC_TESS_SECTIONS + (j-1)
+				));
+				handler.triangles.push_back(triangle(
+					  c  *DC_TESS_SECTIONS + (j-1),
+					(c-1)*DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS,
+					  c  *DC_TESS_SECTIONS +  j%DC_TESS_SECTIONS
+				));
+			}
+			// - update state
+			i_last = i;
+		}
+	}
+	// - end cap, trailing
+	#define DC_TESS_ENDCAPS_VCOUNT 1
+	vec3 endcap_extrusion(std::move(
+		cgv::math::normalize(std::move(
+			traj->positions[0] - traj->positions[1]
+		)))
+	);
+	unsigned last_idx = (unsigned)verts.size();
+	verts.push_back(std::move(traj->positions[0] + endcap_extrusion*extrusion));
+	nrmls.push_back(std::move(endcap_extrusion));
+	for (unsigned j=1; j<=DC_TESS_SECTIONS; j++)
+		handler.triangles.push_back(triangle(
+			last_idx, j%DC_TESS_SECTIONS, j-1
+		));
+	// - end cap, leading
+	endcap_extrusion = std::move(
+		cgv::math::normalize(std::move(
+			traj->positions.back() - traj->positions[traj->positions.size()-2]
+		))
+	);
+	last_idx = (unsigned)verts.size();
+	verts.push_back(std::move(traj->positions.back() + endcap_extrusion*extrusion));
+	nrmls.push_back(std::move(endcap_extrusion));
+	for (unsigned j=1; j<=DC_TESS_SECTIONS; j++)
+		handler.triangles.push_back(triangle(
+			last_idx,
+			seg_counts*DC_TESS_SECTIONS + j-1,
+			seg_counts*DC_TESS_SECTIONS + j%DC_TESS_SECTIONS
+		));
+	// - replace with new tesselation
+	handler.points = std::move(verts); handler.normals = std::move(nrmls);
+
+
+	////
+	// Write .obj and .ply files
+
+	// Filename template
+	std::stringstream filename;
+	filename << "traj_" << std::setfill('0') << std::setw(6) << traj_id;
+	std::ofstream
+		//objfile(filename.str() + ".obj"),
+		plyfile(filename.str() + ".ply");
+
+	// Write mesh
+	//handler.write_obj(objfile);
+	handler.write_ply(plyfile);
+}
+
+void plugin::export_metatube (void)
+{
+	export_metatube(single_traj_id, true);
+}
+
+void plugin::export_all(void)
+{
+	std::cout << std::endl << std::endl << std::endl << "[BEGIN] METATUBE EXTRACTION" << "===========================";
+
+	//#pragma omp parallel for schedule(dynamic)
+	for (signed i=0; unsigned(i)<ellips_data->dynamics.trajs.size(); i++)
+	{
+		std::cout << std::endl << std::endl << "Traj #" << i << std::endl;
+		#ifdef _DEBUG
+			export_metatube(i, true);
+		#else
+			export_metatube(i, false);
+		#endif
+	}
+
+	std::cout << std::endl << std::endl << "[END] METATUBE EXTRACTION" << "========================="
+	          << std::endl << std::endl << std::endl;
+}
+
+void plugin::export_csv(void)
+{
+	// Convenience shorthands
+	auto &trajs = ellips_data->dynamics.trajs;
+
+	// Generate filename
+	std::stringstream filename;
+	filename << "trajectories_" << generator_seed << trajs.size() << trajs[0]->positions.size() << ".csv";
+	std::cout << std::endl << "Exporting trajectories to file '" << filename.str() << "'...";
+
+	// Write data
+	std::ofstream csvfile(filename.str());
+	// - header
+	csvfile << "traj_id,pos_x,pos_y,pos_z,radius" << std::endl;
+	// - samples
+	for (unsigned t=0; t<trajs.size(); t++)
+	{
+		const auto &traj = trajs[t];
+		const auto &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[t]];
+		const auto radius = (
+			  axes[get_ellipsoid_min_axis_id(axes)]
+			+ axes[get_ellipsoid_mid_axis_id(axes)]
+			+ axes[get_ellipsoid_max_axis_id(axes)]
+		) / 3.0f;
+
+		for (const auto &pos : traj->positions)
+			csvfile << t << "," << pos.x() << "," << pos.y() << "," << pos.z() << "," << radius << std::endl;
+	}
+
+	// Done!
+	std::cout << " Done!" << std::endl << std::endl;
+}
+
+void plugin::export_bezdat(void)
+{
+	// Helper for lerp'ing colors
+	auto lerp = [] (const cgv::media::color<unsigned char> &c1,
+	                const cgv::media::color<unsigned char> &c2,
+	                vec3::value_type t)
+	            -> cgv::media::color<unsigned char>
+	{
+		typedef vec3::value_type real;
+		cgv::media::color<unsigned char> result;
+		result.R() = unsigned char( (1-t)*real(c1.R())  +  t*real(c2.R()) );
+		result.G() = unsigned char( (1-t)*real(c1.G())  +  t*real(c2.G()) );
+		result.B() = unsigned char( (1-t)*real(c1.B())  +  t*real(c2.B()) );
+		return std::move(result);
+	};
+	// Hermite->Bezier basis transform
+	constexpr auto _1o3(mat4::value_type(1.0/3.0));
+	struct hermite_interpolation_helper
+	{
+		const mat4::value_type data[16] = {
+			1, 0,     0,    0,   // transposed because we use column
+			1, _1o3,  0,    0,   // vectors and cgv::math::fmat is
+			0, 0,    -_1o3, 1,   // column major
+			0, 0,     0,    1    //
+		};
+		const mat4& h2b(void) const	{ return *((mat4*)data); }
+	};
+	static const hermite_interpolation_helper helper;
+
+	// Convenience shorthands
+	auto &trajs = ellips_data->dynamics.trajs;
+
+	// Generate filename
+	std::stringstream filename;
+	filename << "trajectories_" << generator_seed << trajs.size() << trajs[0]->positions.size() << ".bezdat";
+	std::cout << std::endl << "Exporting trajectories to file '" << filename.str() << "'...";
+
+	// Write data
+	std::ofstream bzdfile(filename.str());
+	// - header
+	bzdfile << "BezDatA 1.0" << std::endl;
+	// - samples
+	unsigned long long points_written = 0;
+	for (unsigned t=0; t<trajs.size(); t++)
+	{
+		const auto &traj = trajs[t];
+		const auto &axes = ellips_data->axes[ellips_data->dynamics.axis_ids[t]];
+		const auto radius = (
+			  axes[get_ellipsoid_min_axis_id(axes)]
+			+ axes[get_ellipsoid_mid_axis_id(axes)]
+			+ axes[get_ellipsoid_max_axis_id(axes)]
+		) / 3.0f;
+
+		// Control tangent data
+		unsigned N = traj->positions.size();
+		std::vector<vec3> m(N); std::vector<vec3::value_type> len(N);
+
+		// First control point and tangent
+		m[0] = std::move(traj->positions[1] - traj->positions[0]);
+		len[0] = m[0].length();
+		m[0] /= 2;
+
+		// 2nd to (N-1)-th control points and tangents
+		for (unsigned p=1; p<N-1; p++)
+		{
+			m[p] = std::move(
+				  std::move(traj->positions[p]   - traj->positions[p-1])
+				+ std::move(traj->positions[p+1] - traj->positions[p])
+			);
+			len[p] = m[p].length();
+			m[p] /= 2;
+		}
+
+		// Last control point and tangent
+		m[N-1] = std::move(traj->positions.back() - traj->positions[N-2]);
+		len[N-1] = m[N-1].length();
+		m[N-1] /= 2;
+
+		// Hermite interpolation
+		const auto dist_thresh_sqr = std::pow(radius*reduction_multiple, 2);
+		unsigned N_exported = 0;
+		vec3 *P_prev = &(traj->positions[0]), *m_prev = &(m[0]);
+		cgv::media::color<unsigned char> color, color_prev;
+		color_prev.R() = unsigned char(time_colors[0].x()*255.0f);
+		color_prev.G() = unsigned char(time_colors[0].y()*255.0f);
+		color_prev.B() = unsigned char(time_colors[0].z()*255.0f);
+		for (unsigned p=1; p<N; p++)
+		{
+			// Skip samples that are too close to the previus control point
+			if ((traj->positions[p]-(*P_prev)).sqr_length() < dist_thresh_sqr)
+			{
+				// Handle this becoming the last (or potentially only) bezier segment
+				if ((traj->positions.back()-traj->positions[p]).sqr_length() < dist_thresh_sqr)
+					p = N-1;
+				else
+					continue;
+			}
+
+			// Adjust tangent length according to amount of data reduction
+			auto endpoints_dist = (traj->positions[p] - (*P_prev)).length();
+			vec3 m0 = std::move(std::move(cgv::math::normalize(*m_prev)) * endpoints_dist),
+			     m1 = std::move(std::move(cgv::math::normalize(  m[p] )) * endpoints_dist);
+
+			// Setup as hermite control matrix
+			cgv::math::fmat<mat4::value_type, 3, 4> M;
+			M.set_col(0, *P_prev);
+			M.set_col(1, m0);
+			M.set_col(2, m1);
+			M.set_col(3, traj->positions[p]);
+
+			// Convert to bezier curve
+			M = std::move( M * helper.h2b() );
+
+			// Write curve control points to file
+			color.R() = unsigned char(time_colors[p].x()*255.0f);
+			color.G() = unsigned char(time_colors[p].y()*255.0f);
+			color.B() = unsigned char(time_colors[p].z()*255.0f);
+			for (unsigned i=0; i<3; i++)
+			{
+				bzdfile
+					// item type
+					<< "PT "
+					// position
+					<< M.col(i).x() <<" "<< M.col(i).y() <<" "<< M.col(i).z() <<" "
+					// attributes - TODO: set radius and color to selectable attributes
+					<< radius <<" "<< lerp(color_prev, color, vec3::value_type(i)/vec3::value_type(3))
+					// newline
+					<< std::endl;
+			}
+
+			// Update state
+			P_prev = &(traj->positions[p]);
+			m_prev = &(m[p]);
+			color_prev = color;
+			N_exported++;
+		}
+		// Last point
+		color.R() = unsigned char(time_colors.back().x()*255.0f);
+		color.G() = unsigned char(time_colors.back().y()*255.0f);
+		color.B() = unsigned char(time_colors.back().z()*255.0f);
+		bzdfile
+			// item type
+			<< "PT "
+			// position
+			<< traj->positions.back().x() <<" "<< traj->positions.back().y() <<" "<<
+			   traj->positions.back().z() <<" "
+			// attributes
+			<< radius << " " << color
+			// newline
+			<< std::endl;
+		N_exported++;
+
+		// Write control point connectivity to file
+		for (unsigned cp=0; cp<N_exported-1; cp++)
+			bzdfile
+				// item type
+				<< "BC "
+				// 1st control point index
+				<< points_written + cp*3 <<" "
+				// 2nd control point index
+				<< points_written + cp*3 + 1 <<" "
+				// 3rd control point index
+				<< points_written + cp*3 + 2 <<" "
+				// 4th control point index
+				<< points_written + cp*3 + 3
+				// newline
+				<< std::endl;
+
+		// Update start index for next trajectory
+		points_written += (N_exported-1)*3 + 1;
+	}
+
+	// Done!
+	std::cout << " Done!" << std::endl << std::endl;
 }
 
 void plugin::render_coordinate_system(cgv::render::context& ctx)

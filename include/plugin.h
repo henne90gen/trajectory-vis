@@ -91,6 +91,21 @@ public:
     // calls different rendering methods
     void draw(cgv::render::context& c);
 
+	// Exports given trajectory as metatube in .obj and .ply format
+	void export_metatube(unsigned traj_id, bool implicit_progress);
+	// Exports currently selected trajectory as metatube in .obj and .ply format
+	void export_metatube(void);
+	// Exports all trajectories as metatubes in individual .obj and .ply files
+	void export_all(void);
+	// Exports all trajectories into a .csv text file
+	void export_csv(void);
+	// Exports all trajectories as hermite splines into single file in .bezdat format
+	void export_bezdat(void);
+	// Whether to recover exact metatube shape based on ellipsoid movement
+	bool exact_metatube;
+	// Ellipsoid size multiple to consult for data reduction during .bezdat export
+	vec3::value_type reduction_multiple;
+
 private:
     // ------------------------- data set -----------------------------------------------
     data* ellips_data;
