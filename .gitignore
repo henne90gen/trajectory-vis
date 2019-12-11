@@ -1,6 +1,1 @@
 *.sublime-workspace
-
-build/
-dist/release/
-dist/trajectory-vis/
-dist/*.tar.gz

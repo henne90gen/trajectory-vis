@@ -885,8 +885,11 @@ bool plugin::init(cgv::render::context& ctx)
     set_up_data();
     // overwrite some data from set up to better fit the start screen
     ellipsoid_tick_sample = time_steps / 5;
-    view_ptr->set_y_extent_at_focus(25.0f);
-
+    
+	if (view_ptr) {
+		view_ptr->set_y_extent_at_focus(25.0f);
+	}
+	
     // set up openGL queries for performance stats
     // query count: 2 - GPU computation time and generated primitives
     // query buffer: for storing the results (two buffers used for swapping)

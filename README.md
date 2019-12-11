@@ -1,6 +1,6 @@
 # Trajectory Visualization
 
-The visualization of particle trajectories is an important tool for analyzing particle movements and finding movement patterns. The trajectory of a particle describes its path covered over time. This project is based on my diploma thesis on *Visualization of trajectories of ellipsoid-shaped particles* (see [project](https://franzi.pages.square-src.de/ellipsoid-trajectory-vis/))). It is written as a plugin for the [CGV framework](https://github.com/sgumhold/cgv) (for CMake support the [cgv fork](https://github.com/f3anaro/cgv) is used).
+The visualization of particle trajectories is an important tool for analyzing particle movements and finding movement patterns. The trajectory of a particle describes its path covered over time. This project is based on my diploma thesis on *Visualization of trajectories of ellipsoid-shaped particles* (see [project](https://franzi.pages.square-src.de/ellipsoid-trajectory-vis/))). It is written as a plugin for the [CGV framework](https://github.com/sgumhold/cgv).
 
 
 ## Compilation
@@ -29,34 +29,17 @@ sudo apt-get install \
 
 ### Build Source Code
 
-The cgv framework is automatically build by using a git submodule that uses the correct version of the cgv framework in combination with a subdirectory in cmake to build the framework alongside with the trajectory visualization plugin.
+This project depends on the cgv-framework which is only developed for usage with Windows. Therefore compiling with Visual Studio is recommended.
 
-```bash
-git clone https://git.square-src.de/franzi/ellipsoid-trajectory-vis.git
-cd ellipsoid-trajectory-vis/
-git submodule update --init --recursive
+Install the cgv-framework according to the documentation: [CGV framework on github](https://github.com/sgumhold/cgv).
 
-cd <project/root/path>
-mkdir build/
-cd build/
+After the cgv-framework is set up clone this repository and use the provided cgv-framework project file (trajectory-vis-cgv.pj) to generate the Visual Studio solution using the generator of the cgv-framework:
 
-cmake ..
-make -j
+        - drag the trajectory-vis.pj onto <cgv>/bin/generate-makefile.bat
+        - the VS-solution should open automatically otherwise it can be found under <cgv-build-dir>/vs141/trajectory-vis (VS-version may vary)
+        - either build as Debug/Relaase Dll or Exe
+        - for details see documentation of cgv-framework
 
-# use the launch script which handles configuration of shader paths and required plugins
-../launch.sh
-```
-
-#### Optional: Create Release Application
-
-There is a Makefile for building a `release` application with all its dependencies. The application is bundled in directory `dist/ellipsoid-trajectory-vis/`.
-
-```bash
-make dist
-
-# Execute launch script
-dist/ellipsoid-trajectory-vis/ellipsoid-trajectory-vis
-```
 
 
 ## Data Sets
