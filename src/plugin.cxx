@@ -1535,7 +1535,8 @@ void plugin::export_bezdat(void)
 	// - header
 	bzdfile << "BezDatA 1.0" << std::endl;
 	// - samples
-	unsigned long long points_written = 0;
+	unsigned long long points_written=0, hermite_nodes=0, segments_written=0,
+	                   orig_sampleCount=0;
 	for (unsigned t=0; t<trajs.size(); t++)
 	{
 		const auto &traj = trajs[t];
@@ -1549,6 +1550,7 @@ void plugin::export_bezdat(void)
 		// Control tangent data
 		unsigned N = traj->positions.size();
 		std::vector<vec3> m(N); std::vector<vec3::value_type> len(N);
+        orig_sampleCount += N; // For calculating achieved data reduction later on
 
 		// First control point and tangent
 		m[0] = std::move(traj->positions[1] - traj->positions[0]);
@@ -1611,7 +1613,6 @@ void plugin::export_bezdat(void)
 			color.G() = unsigned char(time_colors[p].y()*255.0f);
 			color.B() = unsigned char(time_colors[p].z()*255.0f);
 			for (unsigned i=0; i<3; i++)
-			{
 				bzdfile
 					// item type
 					<< "PT "
@@ -1621,7 +1622,6 @@ void plugin::export_bezdat(void)
 					<< radius <<" "<< lerp(color_prev, color, vec3::value_type(i)/vec3::value_type(3))
 					// newline
 					<< std::endl;
-			}
 
 			// Update state
 			P_prev = &(traj->positions[p]);
@@ -1644,9 +1644,11 @@ void plugin::export_bezdat(void)
 			// newline
 			<< std::endl;
 		N_exported++;
+		hermite_nodes += N_exported;
 
-		// Write control point connectivity to file
+        // Write control point connectivity to file
 		for (unsigned cp=0; cp<N_exported-1; cp++)
+		{
 			bzdfile
 				// item type
 				<< "BC "
@@ -1660,13 +1662,23 @@ void plugin::export_bezdat(void)
 				<< points_written + cp*3 + 3
 				// newline
 				<< std::endl;
+			segments_written++;
+		}
 
 		// Update start index for next trajectory
 		points_written += (N_exported-1)*3 + 1;
 	}
 
 	// Done!
-	std::cout << " Done!" << std::endl << std::endl;
+	std::cout << " Done!" << std::endl;
+    double reduction = double(hermite_nodes)/double(orig_sampleCount);
+	std::cout << "Stats: " <<trajs.size()<< " tubes," << std::endl
+	          << "       " <<segments_written<< " segments," << std::endl
+	          << "       " <<hermite_nodes<< " hermite nodes," << std::endl
+	          << "        -> data reducion factor " <<reduction << std::endl
+	          << "       " <<points_written<< " bezier points," << std::endl
+	          << "       " <<double(segments_written)/double(trajs.size())<< " segs/tube"
+ 	          << std::endl << std::endl;
 }
 
 void plugin::render_coordinate_system(cgv::render::context& ctx)
