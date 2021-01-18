@@ -1,4 +1,0 @@
-[submodule "cgv"]
-	path = cgv
-	url = https://github.com/brussig-tud/cgv.git
-	branch = develop
