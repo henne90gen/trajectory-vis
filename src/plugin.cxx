@@ -1498,19 +1498,12 @@ void plugin::export_csv(void)
 
 void plugin::export_bezdat(void)
 {
-	// Helper for lerp'ing colors
-	auto lerp = [] (const cgv::media::color<unsigned char> &c1,
-	                const cgv::media::color<unsigned char> &c2,
-	                vec3::value_type t)
-	            -> cgv::media::color<unsigned char>
+	// Helper for truncating alpha from color vectors
+	static const auto toRGB = [] (const vec4 &c) -> vec3
 	{
-		typedef vec3::value_type real;
-		cgv::media::color<unsigned char> result;
-		result.R() = unsigned char( (1-t)*real(c1.R())  +  t*real(c2.R()) );
-		result.G() = unsigned char( (1-t)*real(c1.G())  +  t*real(c2.G()) );
-		result.B() = unsigned char( (1-t)*real(c1.B())  +  t*real(c2.B()) );
-		return std::move(result);
+		return std::move(vec3(c.x(), c.y(), c.z()));
 	};
+
 	// Hermite->Bezier basis transform
 	constexpr auto _1o3(mat4::value_type(1.0/3.0));
 	struct hermite_interpolation_helper
@@ -1521,7 +1514,7 @@ void plugin::export_bezdat(void)
 			0, 0,    -_1o3, 1,   // column major
 			0, 0,     0,    1    //
 		};
-		const mat4& h2b(void) const	{ return *((mat4*)data); }
+		const mat4& h2b(void) const { return *((mat4*)data); }
 	};
 	static const hermite_interpolation_helper helper;
 
@@ -1537,8 +1530,9 @@ void plugin::export_bezdat(void)
 	std::ofstream bzdfile(filename.str());
 	// - header
 	bzdfile << "BezDatA 1.0" << std::endl;
-	// - samples
-	unsigned long long points_written = 0;
+	// - tubes
+	unsigned long long points_written=0, hermite_nodes=0, segments_written=0,
+	                   orig_sampleCount=0;
 	for (unsigned t=0; t<trajs.size(); t++)
 	{
 		const auto &traj = trajs[t];
@@ -1549,107 +1543,134 @@ void plugin::export_bezdat(void)
 			+ axes[get_ellipsoid_max_axis_id(axes)]
 		) / 3.0f;
 
-		// Control tangent data
-		unsigned N = traj->positions.size();
-		std::vector<vec3> m(N); std::vector<vec3::value_type> len(N);
-
-		// First control point and tangent
-		m[0] = std::move(traj->positions[1] - traj->positions[0]);
-		len[0] = m[0].length();
-		m[0] /= 2;
-
-		// 2nd to (N-1)-th control points and tangents
-		for (unsigned p=1; p<N-1; p++)
-		{
-			m[p] = std::move(
-				  std::move(traj->positions[p]   - traj->positions[p-1])
-				+ std::move(traj->positions[p+1] - traj->positions[p])
-			);
-			len[p] = m[p].length();
-			m[p] /= 2;
-		}
-
-		// Last control point and tangent
-		m[N-1] = std::move(traj->positions.back() - traj->positions[N-2]);
-		len[N-1] = m[N-1].length();
-		m[N-1] /= 2;
-
-		// Hermite interpolation
-		const auto dist_thresh_sqr = std::pow(radius*reduction_multiple, 2);
-		unsigned N_exported = 0;
-		vec3 *P_prev = &(traj->positions[0]), *m_prev = &(m[0]);
-		cgv::media::color<unsigned char> color, color_prev;
-		color_prev.R() = unsigned char(time_colors[0].x()*255.0f);
-		color_prev.G() = unsigned char(time_colors[0].y()*255.0f);
-		color_prev.B() = unsigned char(time_colors[0].z()*255.0f);
-		for (unsigned p=1; p<N; p++)
+		// Apply data reduction
+		const auto dist_thresh = radius*reduction_multiple,
+		           dist_thresh_sqr = dist_thresh*dist_thresh;
+		std::vector<vec3> positions, colors;
+		positions.reserve(traj->positions.size()/reduction_multiple);
+		colors.reserve(positions.capacity());
+		positions.push_back(traj->positions[0]);
+		colors.emplace_back(toRGB(time_colors[0])*vec3::value_type(255));
+		vec3 *p_last = positions.data();
+		for (unsigned p=1; p<traj->positions.size(); p++)
 		{
 			// Skip samples that are too close to the previus control point
-			if ((traj->positions[p]-(*P_prev)).sqr_length() < dist_thresh_sqr)
+			if ((traj->positions[p]-(*p_last)).sqr_length() < dist_thresh_sqr)
 			{
 				// Handle this becoming the last (or potentially only) bezier segment
-				if ((traj->positions.back()-traj->positions[p]).sqr_length() < dist_thresh_sqr)
-					p = N-1;
+				if (  (traj->positions.back()-traj->positions[p]).sqr_length()
+				    < dist_thresh_sqr)
+					p = traj->positions.size()-1;
 				else
 					continue;
 			}
+			positions.push_back(traj->positions[p]);
+			colors.emplace_back(toRGB(time_colors[p])*vec3::value_type(255));
+			p_last = &(traj->positions[p]);
+		}
 
-			// Adjust tangent length according to amount of data reduction
-			auto endpoints_dist = (traj->positions[p] - (*P_prev)).length();
-			vec3 m0 = std::move(std::move(cgv::math::normalize(*m_prev)) * endpoints_dist),
-			     m1 = std::move(std::move(cgv::math::normalize(  m[p] )) * endpoints_dist);
+		// Keep track of original sample count for calculating achieved data reduction
+		// later on
+		orig_sampleCount += traj->positions.size();
 
-			// Setup as hermite control matrix
-			cgv::math::fmat<mat4::value_type, 3, 4> M;
-			M.set_col(0, *P_prev);
-			M.set_col(1, m0);
-			M.set_col(2, m1);
-			M.set_col(3, traj->positions[p]);
+		// Control tangent data
+		unsigned N = (unsigned)positions.size();
+		std::vector<vec3> m(N), cm(N);
 
-			// Convert to bezier curve
+		// First point control tangents
+		m[0] = std::move(positions[1] - positions[0]);
+		cm[0] = std::move(colors[1] - colors[0]);
+
+		// 2nd to (N-1)-th point control tangents
+		for (unsigned p=1; p<N-1; p++)
+		{
+			m[p] = std::move(
+				  std::move(positions[p]   - positions[p-1])
+				+ std::move(positions[p+1] - positions[p])
+			);
+			vec3::value_type lm = m[p].length(),
+			                 l0 = (positions[p] - positions[p-1]).length(),
+			                 l1 = (positions[p+1] - positions[p]).length();
+			if (lm > l0*0.75f)
+			{
+				lm = l0 * 0.75f;
+				m[p] = cgv::math::normalize(m[p])*lm;
+			}
+			if (lm > l1*0.75f)
+				m[p] = cgv::math::normalize(m[p])*l1*0.75f;
+			cm[p] = std::move(
+				  std::move(colors[p]   - colors[p-1])
+				+ std::move(colors[p+1] - colors[p])
+			);
+			lm = cm[p].length(),
+			l0 = (colors[p] - colors[p-1]).length(),
+			l1 = (colors[p+1] - colors[p]).length();
+			if (lm > l0*0.75f)
+			{
+				lm = l0 * 0.75f;
+				cm[p] = cgv::math::normalize(cm[p])*lm;
+			}
+			if (lm > l1*0.75f)
+				cm[p] = cgv::math::normalize(cm[p])*l1*0.75f;
+		}
+
+		// Last point control tangents
+		m[N-1] = std::move(positions.back() - positions[N-2]);
+		cm[N-1] = std::move(colors.back() - colors[N-2]);
+
+		// Hermite interpolation
+		unsigned N_exported = 0;
+		for (unsigned p=1; p<N; p++)
+		{
+			// Setup as hermite control matrices
+			cgv::math::fmat<dmat4::value_type, 3, 4> M, C;
+			M.set_col(0, positions[p-1]);
+			M.set_col(1, m[p-1]);
+			M.set_col(2, m[p]);
+			M.set_col(3, positions[p]);
+			C.set_col(0, colors[p-1]);
+			C.set_col(1, cm[p-1]);
+			C.set_col(2, cm[p]);
+			C.set_col(3, colors[p]);
+
+			// Convert to bezier curves
 			M = std::move( M * helper.h2b() );
+			C = std::move( C * helper.h2b() );
 
 			// Write curve control points to file
-			color.R() = unsigned char(time_colors[p].x()*255.0f);
-			color.G() = unsigned char(time_colors[p].y()*255.0f);
-			color.B() = unsigned char(time_colors[p].z()*255.0f);
 			for (unsigned i=0; i<3; i++)
-			{
 				bzdfile
 					// item type
 					<< "PT "
 					// position
 					<< M.col(i).x() <<" "<< M.col(i).y() <<" "<< M.col(i).z() <<" "
 					// attributes - TODO: set radius and color to selectable attributes
-					<< radius <<" "<< lerp(color_prev, color, vec3::value_type(i)/vec3::value_type(3))
+					<< radius <<" "<< C.col(i).x() <<" "<< C.col(i).y() <<" "<<
+					                  C.col(i).z()
 					// newline
 					<< std::endl;
-			}
 
 			// Update state
-			P_prev = &(traj->positions[p]);
-			m_prev = &(m[p]);
-			color_prev = color;
 			N_exported++;
 		}
 		// Last point
-		color.R() = unsigned char(time_colors.back().x()*255.0f);
-		color.G() = unsigned char(time_colors.back().y()*255.0f);
-		color.B() = unsigned char(time_colors.back().z()*255.0f);
 		bzdfile
 			// item type
 			<< "PT "
 			// position
-			<< traj->positions.back().x() <<" "<< traj->positions.back().y() <<" "<<
-			   traj->positions.back().z() <<" "
+			<< positions.back().x() <<" "<< positions.back().y() <<" "<<
+			   positions.back().z() <<" "
 			// attributes
-			<< radius << " " << color
+			<< radius <<" "<< colors.back().x() <<" "<< colors.back().y() <<" "<<
+			                  colors.back().z()
 			// newline
 			<< std::endl;
 		N_exported++;
+		hermite_nodes += N_exported;
 
 		// Write control point connectivity to file
 		for (unsigned cp=0; cp<N_exported-1; cp++)
+		{
 			bzdfile
 				// item type
 				<< "BC "
@@ -1663,13 +1684,24 @@ void plugin::export_bezdat(void)
 				<< points_written + cp*3 + 3
 				// newline
 				<< std::endl;
+			segments_written++;
+		}
 
 		// Update start index for next trajectory
 		points_written += (N_exported-1)*3 + 1;
 	}
+	// - determine data reduction
+	double reduction = double(hermite_nodes) / double(orig_sampleCount);
 
 	// Done!
-	std::cout << " Done!" << std::endl << std::endl;
+	std::cout << " Done!" << std::endl;
+	std::cout << "Stats: " <<trajs.size()<< " tubes," << std::endl
+	          << "       " <<segments_written<< " segments," << std::endl
+	          << "       " <<hermite_nodes<< " hermite nodes," << std::endl
+	          << "        -> data reducion factor " <<reduction << std::endl
+	          << "       " <<points_written<< " bezier points," << std::endl
+	          << "       " <<double(segments_written)/double(trajs.size())<< " segs/tube"
+	          << std::endl << std::endl;
 }
 
 void plugin::render_coordinate_system(cgv::render::context& ctx)
