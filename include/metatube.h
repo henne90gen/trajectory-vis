@@ -260,7 +260,7 @@ struct voxel
 			// Uses the 3d vector hash function described in "Optimized Spatial
 			// Hashing for Collision Detection of Deformable Objects" available here:
 			// http://www.beosil.com/download/CollisionDetectionHashing_VMV03.pdf
-			return unsigned long(
+			return (unsigned long)(
 				key.x * 73856093LL ^ key.y * 19349663LL ^ key.z * 83492791LL
 				/* mod N is ommitted since it would be (size_t_max)-1 here, which is
 				   basically a no-op */
@@ -426,6 +426,9 @@ struct quadric : public cgv::math::v3_func<real, real>
 	                 a_zz, a_zw,
 	                       a_ww;
 
+	typedef typename cgv::math::v3_func<real, real>::vec_type vec_type;
+	typedef typename cgv::math::v3_func<real, real>::pnt_type pnt_type;
+
 	vec_type axis;
 	real     angle;
 
@@ -464,6 +467,7 @@ struct metatube : public cgv::math::v3_func<real, real>
 	// Types
 	typedef ellipsoid_trajectory::vec3 vec3;
 	typedef ellipsoid_trajectory::vec4 vec4;
+	typedef typename cgv::math::v3_func<real, real>::pnt_type pnt_type;
 
 	// External state
 	const std::vector<vec3> *traj;
@@ -507,7 +511,7 @@ public:
 		this->traj = &traj; this->orientations = &orientations; this->axes = &axes;
 		positions_scaled.resize(traj.size());
 		traj_bboxes.resize(traj.size());
-		bbox_reference = get_ellipsoid_bbox(axes, scale);
+		bbox_reference = get_ellipsoid_bbox(axes);
 		setup_state();
 	}
 
