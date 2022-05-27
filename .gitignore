@@ -1,1 +1,4 @@
 *.sublime-workspace
+build/
+cmake-build-debug/
+.idea/
